@@ -106,3 +106,6 @@ function matchReplace(pattern, replacePattern, str) {
 if (typeof module === "object" && module.exports) {
     module.exports = matchReplace;
 }
+
+globalThis.match = match;
+globalThis.matchReplace = matchReplace;

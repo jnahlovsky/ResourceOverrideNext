@@ -125,6 +125,7 @@
         }
 
         function completeInput(input, option) {
+            if (!option && (!options || options.length === 0)) return;
             const selectedText = option ? option.text() : options.eq(selectedIndex).text();
             const val = input.val().replace(/\*+$/g, "");
             const inputParts = val.split("*");
@@ -212,6 +213,7 @@
         }
 
         function selectDown(dontTryAgain) {
+            if (!options || options.length === 0) return;
             const oldSelectedIndex = selectedIndex;
             let isVisible;
             do {
@@ -228,6 +230,7 @@
         }
 
         function selectUp(dontTryAgain) {
+            if (!options || options.length === 0) return;
             const oldSelectedIndex = selectedIndex;
             let isVisible;
             do {
@@ -244,6 +247,7 @@
         }
 
         function highlightOption() {
+            if (!options || options.length === 0) return;
             const optionToHighlight = options.eq(selectedIndex);
             options.css("background", "#ffffff");
             optionToHighlight.css("background", "#aaaaaa");

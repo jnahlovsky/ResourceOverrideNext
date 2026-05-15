@@ -1,4 +1,7 @@
 *.pem
 *.crx
 *.xpi
+.DS_Store
 .worktrees/
+node_modules/
+dist/

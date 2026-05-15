@@ -67,10 +67,6 @@
             app.skipNextSync = true;
         });
 
-        ui.helpBtn.on("click", function() {
-            ui.helpOverlay.toggle();
-        });
-
         ui.helpCloseBtn.on("click", function() {
             ui.helpOverlay.hide();
         });

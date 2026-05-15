@@ -7,18 +7,6 @@
     const ui = app.ui;
     const util = app.util;
 
-    $(window).on("click", function(e) {
-        const $target = $(e.target);
-        if (e.target.id === "optionsBtn") {
-            ui.optionsPopOver.toggle();
-            ui.helpOverlay.hide();
-        } else {
-            if ($target.closest("#optionsPopOver").length === 0) {
-                ui.optionsPopOver.hide();
-            }
-        }
-    });
-
     ui.showDevTools.on("click", function() {
         chrome.runtime.sendMessage({
             action: "setSetting",
@@ -33,7 +21,9 @@
             setting: "showSuggestions",
             value: ui.showSuggestions.prop("checked")
         });
-        app.mainSuggest.setShouldSuggest(ui.showSuggestions.prop("checked"));
+        if (app.mainSuggest) {
+            app.mainSuggest.setShouldSuggest(ui.showSuggestions.prop("checked"));
+        }
     });
 
     if (!util.isChrome()) {

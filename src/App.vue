@@ -1,6 +1,8 @@
 <template>
   <div id="vue-root">
-    <div id="legacy-ui-container">
+    <AppHeader />
+    <OptionsPanel />
+    <div id="legacy-ui-container" v-pre>
 <template id="onOffSwitchTemplate">
     <div class="onoffswitch">
         <input type="checkbox" class="onoffswitch-checkbox" checked>
@@ -177,34 +179,6 @@
     </div>
 </template>
 
-<div id="title">
-    <h1>Resource Override</h1>
-</div>
-
-<div id="helpAndOptions">
-    <div class="optionsBtnContainer"><button id="optionsBtn" class="btn">Options</button></div>
-    <div class="helpBtnContainer"><button id="helpBtn" class="btn">Help</button></div>
-
-    <div id="optionsPopOver">
-        <div class="optionRow">
-            <div class="optionText">Show DevTools Tab:</div>
-            <div class="optionCheckbox"><input type="checkbox" id="showDevTools"></div>
-        </div>
-        <div class="optionRow">
-            <div class="optionText" id="showSuggestionsText">Show Suggestions:</div>
-            <div class="optionCheckbox"><input type="checkbox" id="showSuggestions"></div>
-        </div>
-        <div class="optionRow">
-            <div class="optionText">Show Logs:</div>
-            <div class="optionCheckbox"><input type="checkbox" id="showLogs"></div>
-        </div>
-        <div class="optionRow">
-            <div class="left"><a id="saveRulesLink" href="#">Save Rules</a></div>
-            <div class="right"><a id="loadRulesLink" href="#">Load Rules</a></div>
-            <input type="file" class="fileInput" id="loadRulesInput">
-        </div>
-    </div>
-</div>
 <div class="clearfix"></div>
 
 <div id="domainDefs"></div>
@@ -343,6 +317,8 @@ The devtools tab has more features that aren't avilable on the options page. <a 
 
 <script setup>
 import { onMounted } from 'vue';
+import AppHeader from './components/AppHeader.vue';
+import OptionsPanel from './components/OptionsPanel.vue';
 
 onMounted(async () => {
     // Dynamically import legacy UI scripts sequentially to preserve order
@@ -360,8 +336,8 @@ onMounted(async () => {
     await import('./ui/headerRule.js');
     await import('./ui/tabGroup.js');
     await import('./ui/importExport.js');
-    await import('./ui/options.js');
     await import('./ui/devtoolstab.js');
+    await import('./ui/options.js');
 });
 </script>
 
