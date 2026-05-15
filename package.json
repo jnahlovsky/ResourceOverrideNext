@@ -1,0 +1,29 @@
+{
+  "name": "vue3-mv3-migration",
+  "version": "1.0.0",
+  "description": "## !!! Development on RO has stopped indefinitely !!!",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.4.0",
+    "@vitejs/plugin-vue": "^6.0.7",
+    "vite": "^8.0.13"
+  },
+  "dependencies": {
+    "vue": "^3.5.34",
+    "ace-builds": "^1.44.0",
+    "jquery": "^4.0.0",
+    "js-beautify": "^1.15.4"
+  }
+}
