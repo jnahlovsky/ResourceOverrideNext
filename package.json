@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "",
@@ -18,12 +19,14 @@
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.4.0",
     "@vitejs/plugin-vue": "^6.0.7",
-    "vite": "^8.0.13"
+    "jsdom": "^29.1.1",
+    "vite": "^8.0.13",
+    "vitest": "^4.1.6"
   },
   "dependencies": {
-    "vue": "^3.5.34",
     "ace-builds": "^1.44.0",
     "jquery": "^4.0.0",
-    "js-beautify": "^1.15.4"
+    "js-beautify": "^1.15.4",
+    "vue": "^3.5.34"
   }
 }

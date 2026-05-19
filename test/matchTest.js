@@ -1,4 +1,4 @@
-var matchReplace = require("../src/background/match");
+var matchReplace = require("../src/extension/match");
 
 function assert(val, expected) {
     if (val !== expected) {

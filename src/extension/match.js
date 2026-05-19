@@ -12,6 +12,23 @@ function tokenize(str) {
 
 function match(pattern, str) {
     "use strict";
+    if (pattern.length > 2 && pattern.startsWith('/') && pattern.endsWith('/')) {
+        try {
+            var regex = new RegExp(pattern.substring(1, pattern.length - 1));
+            var m = str.match(regex);
+            if (m) {
+                return {
+                    matched: true,
+                    isRegex: true,
+                    pattern: regex
+                };
+            }
+        } catch (e) {
+            return { matched: false };
+        }
+        return { matched: false };
+    }
+
     var patternTokens = tokenize(pattern);
     var freeVars = {};
     var varGroup;
@@ -85,6 +102,10 @@ function matchReplace(pattern, replacePattern, str) {
     if (!matchData.matched) {
         // If the pattern didn't match.
         return str;
+    }
+
+    if (matchData.isRegex) {
+        return str.replace(matchData.pattern, replacePattern);
     }
 
     // Plug in the freevars in place of the stars.
