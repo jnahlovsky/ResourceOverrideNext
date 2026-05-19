@@ -6,6 +6,9 @@
     const simpleError = bgapp.util.simpleError;
 
     const syncAllInstances = function() {
+        if (bgapp.updateDNRRules) {
+            bgapp.updateDNRRules();
+        }
         bgapp.syncFunctions.forEach(function(fn) {
             try {
                 fn();
