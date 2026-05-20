@@ -38,15 +38,14 @@
         });
     }
 
-    function setupSynchronizeConnection() {
-        chrome.runtime.sendMessage({action: "syncMe"}, function() {
+    chrome.runtime.onMessage.addListener(function(request) {
+        if (request.action === "dataUpdated") {
             if (!app.skipNextSync) {
                 renderData();
             }
             app.skipNextSync = false;
-            setupSynchronizeConnection();
-        });
-    }
+        }
+    });
 
     function init() {
         app.mainSuggest.init();
@@ -54,8 +53,6 @@
         app.responseHeadersSuggest.init();
         app.requestHeadersSuggest.fillOptions(app.headersLists.requestHeaders);
         app.responseHeadersSuggest.fillOptions(app.headersLists.responseHeaders);
-
-        setupSynchronizeConnection();
 
         renderData();
 

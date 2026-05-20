@@ -1,7 +1,6 @@
 /* global bgapp, chrome, match */
 {
     bgapp.ruleDomains = bgapp.ruleDomains || {};
-    bgapp.syncFunctions = bgapp.syncFunctions || [];
 
     const simpleError = bgapp.util.simpleError;
 
@@ -9,12 +8,9 @@
         if (bgapp.updateDNRRules) {
             bgapp.updateDNRRules();
         }
-        bgapp.syncFunctions.forEach(function(fn) {
-            try {
-                fn();
-            } catch (e) { /**/ }
-        });
-        bgapp.syncFunctions = [];
+        
+        // Broadcast to all extension UI pages that data has updated
+        chrome.runtime.sendMessage({ action: "dataUpdated" }).catch(() => {});
     };
 
     chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
@@ -61,9 +57,6 @@
             sendResponse();
         } else if (request.action === "getSetting") {
             sendResponse(bgapp.getSetting(request.setting));
-        } else if (request.action === "syncMe") {
-            bgapp.syncFunctions.push(sendResponse);
-            return true; // async
         } else if (request.action === "match") {
             sendResponse(match(request.domainUrl, request.windowUrl).matched);
         } else if (request.action === "extractMimeType") {
