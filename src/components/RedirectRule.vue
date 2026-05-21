@@ -1,14 +1,23 @@
 <template>
   <RuleCard :rule="rule" @toggle="toggle" @delete="remove">
-    <div class="grid grid-cols-2 gap-4">
-      <div class="space-y-1.5">
-        <label class="text-[13px] font-medium text-slate-700 block">Source URL Pattern <span class="font-normal text-slate-500">(Can be a URL substring or regex enclosed in /.../)</span></label>
-        <UInput v-model="localRule.match" @change="save" placeholder="Match URL" class="font-mono text-[13px]" :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none h-9' }" />
-      </div>
-      <div class="space-y-1.5">
-        <label class="text-[13px] font-medium text-slate-700 block">Destination URL</label>
-        <UInput v-model="localRule.replace" @change="save" placeholder="Replace URL" class="font-mono text-[13px]" :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none h-9' }" />
-      </div>
+    <div class="flex items-center gap-3">
+      <UInput 
+        v-model="localRule.match" 
+        @change="save" 
+        placeholder="Source URL Pattern (e.g. /https:\/\/example\.com\/(.*)/)" 
+        class="font-mono text-[13px] flex-1" 
+        :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none h-8', wrapper: 'flex-1' }" 
+      />
+      
+      <UIcon name="i-lucide-arrow-right" class="text-slate-400 w-4 h-4 flex-shrink-0" />
+      
+      <UInput 
+        v-model="localRule.replace" 
+        @change="save" 
+        placeholder="Destination URL (e.g. https://localhost:8081/$1)" 
+        class="font-mono text-[13px] flex-1" 
+        :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none h-8', wrapper: 'flex-1' }" 
+      />
     </div>
   </RuleCard>
 </template>

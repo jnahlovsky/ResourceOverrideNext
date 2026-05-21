@@ -1,26 +1,35 @@
 <template>
   <RuleCard :rule="rule" @toggle="toggle" @delete="remove">
-    <div class="grid grid-cols-[2fr_1fr_1fr_2fr] gap-4 items-end">
-      <div class="space-y-1.5">
-        <label class="text-[13px] font-medium text-slate-700 block">File Name <span class="font-normal text-slate-500">(Optional)</span></label>
-        <UInput v-model="localRule.fileName" @change="save" placeholder="File Name" class="text-[13px]" :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none h-9' }" />
-      </div>
+    <div class="flex items-center gap-3">
+      <UInput 
+        v-model="localRule.fileName" 
+        @change="save" 
+        placeholder="File Name (Optional)" 
+        class="text-[13px] flex-1 min-w-[120px]" 
+        :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none h-8', wrapper: 'flex-1' }" 
+      />
 
-      <div class="space-y-1.5">
-        <label class="text-[13px] font-medium text-slate-700 block">File Type</label>
-        <USelect v-model="localRule.fileType" @change="save" :items="[{ label: 'JS', value: 'js' }, { label: 'CSS', value: 'css' }]" class="h-9 rounded-sm border-slate-300 bg-white shadow-none text-[13px]" />
-      </div>
+      <USelect 
+        v-model="localRule.fileType" 
+        @change="save" 
+        :items="[{ label: 'JS', value: 'js' }, { label: 'CSS', value: 'css' }]" 
+        class="h-8 rounded-sm border-slate-300 bg-white shadow-none text-[13px] w-[80px]" 
+      />
 
-      <div class="space-y-1.5">
-        <label class="text-[13px] font-medium text-slate-700 block">Inject into</label>
-        <USelect v-model="localRule.injectLocation" @change="save" :items="[{ label: 'Head', value: 'head' }, { label: 'Body', value: 'body' }]" class="h-9 rounded-sm border-slate-300 bg-white shadow-none text-[13px]" />
-      </div>
+      <USelect 
+        v-model="localRule.injectLocation" 
+        @change="save" 
+        :items="[{ label: 'Head', value: 'head' }, { label: 'Body', value: 'body' }]" 
+        class="h-8 rounded-sm border-slate-300 bg-white shadow-none text-[13px] w-[90px]" 
+      />
 
-      <div class="space-y-1.5">
-        <UButton variant="outline" class="w-full justify-center text-[13px] font-normal text-slate-700 bg-white border-slate-300 rounded-sm h-9 shadow-none hover:bg-slate-50" @click="editFile">
-            Edit File Content
-        </UButton>
-      </div>
+      <UButton 
+        variant="soft" 
+        class="text-[13px] font-medium h-8 whitespace-nowrap" 
+        @click="editFile"
+      >
+        File Content
+      </UButton>
     </div>
   </RuleCard>
 </template>

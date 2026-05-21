@@ -1,18 +1,32 @@
 <template>
-  <div class="mb-4 rounded-md border border-slate-400/60 shadow-none overflow-hidden bg-white">
-    <div class="flex items-center justify-between px-4 pt-3 pb-1 bg-white border-b border-slate-100">
-      <div class="flex items-center gap-2 cursor-move group">
-        <UCheckbox :id="'enabled-' + rule.id" :model-value="rule.on" @update:model-value="$emit('toggle', $event)" />
-        <label :for="'enabled-' + rule.id" class="text-sm font-medium text-slate-700 cursor-pointer select-none">
-          Enabled
-        </label>
+  <div class="mb-3 rounded-md border border-slate-200 shadow-sm bg-white hover:border-slate-300 transition-colors">
+    <div class="flex items-center p-2 gap-3">
+      <!-- Drag Handle -->
+      <div class="cursor-move text-slate-400 hover:text-slate-600 flex-shrink-0 px-1">
+        <UIcon name="i-lucide-grip-vertical" class="w-4 h-4" />
       </div>
-      <div class="flex items-center gap-4">
-        <UButton variant="ghost" color="error" icon="i-lucide-trash-2" @click="$emit('delete')" class="hover:bg-red-50 text-red-500 rounded-full w-8 h-8 flex justify-center items-center" />
+
+      <!-- Main Content Area -->
+      <div class="flex-1 min-w-0">
+        <slot></slot>
       </div>
-    </div>
-    <div class="px-4 pb-4 pt-2 bg-white">
-      <slot></slot>
+
+      <!-- Actions Area -->
+      <div class="flex items-center gap-3 pl-2 border-l border-slate-100 flex-shrink-0">
+        <USwitch 
+          :model-value="rule.on" 
+          @update:model-value="$emit('toggle', $event)" 
+          size="sm"
+          color="success"
+        />
+        <UButton 
+          variant="ghost" 
+          color="error" 
+          icon="i-lucide-trash-2" 
+          @click="$emit('delete')" 
+          class="hover:bg-red-50 text-red-500 rounded-md w-8 h-8 flex justify-center items-center" 
+        />
+      </div>
     </div>
   </div>
 </template>

@@ -1,16 +1,13 @@
 <template>
   <div class="bg-[#f4f4f5] px-6 py-4 flex justify-between items-center relative z-10 border-b border-slate-200">
-      <div class="flex-1">
-          <!-- spacer -->
+      <div class="flex flex-1 items-center">
+          <h1 class="text-[#127db3] m-0 text-[22px] font-bold tracking-tight">Resourced</h1>
       </div>
-      <div class="flex flex-1 justify-center items-center gap-3">
-          <h1 class="text-[#2563eb] m-0 text-[22px] font-bold tracking-tight">Resource Override (MV3)</h1>
-      </div>
-      <div class="flex flex-1 justify-end items-center gap-2">
-          <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+      <div class="flex flex-1 justify-end items-center gap-2" v-if="isExtensionOn !== null">
+          <span class="text-xs font-semibold uppercase tracking-wider" :class="isExtensionOn ? 'text-green-600' : 'text-slate-400'">
             {{ isExtensionOn ? 'ON' : 'OFF' }}
           </span>
-          <USwitch :model-value="isExtensionOn" @update:model-value="toggleExtension" />
+          <USwitch :model-value="isExtensionOn" @update:model-value="toggleExtension" color="success" />
       </div>
   </div>
 </template>
@@ -18,7 +15,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 
-const isExtensionOn = ref(true);
+const isExtensionOn = ref(null);
 
 onMounted(() => {
     if (typeof chrome !== 'undefined' && chrome.runtime) {
@@ -28,6 +25,8 @@ onMounted(() => {
         }, (data) => {
             isExtensionOn.value = data !== "false";
         });
+    } else {
+        isExtensionOn.value = true;
     }
 });
 
@@ -45,7 +44,7 @@ const toggleExtension = (checked) => {
                 title: checked ? "Resource Override (ON)" : "Resource Override (OFF)"
             });
             chrome.action.setBadgeText({ text: checked ? "" : "OFF" });
-            chrome.action.setBadgeBackgroundColor({ color: "#FF0000" });
+            chrome.action.setBadgeBackgroundColor({ color: checked ? "#22c55e" : "#94a3b8" });
             chrome.runtime.sendMessage({ action: "updateDNRRules" });
         });
     }

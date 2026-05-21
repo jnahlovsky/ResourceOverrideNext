@@ -7,6 +7,6 @@
             title: isOn ? "Resource Override (ON)" : "Resource Override (OFF)"
         });
         chrome.action.setBadgeText({ text: isOn ? "" : "OFF" });
-        chrome.action.setBadgeBackgroundColor({ color: "#FF0000" });
+        chrome.action.setBadgeBackgroundColor({ color: isOn ? "#22c55e" : "#94a3b8" });
     });
 }
