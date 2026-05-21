@@ -10,7 +10,10 @@ export async function updateDNRRules() {
         const addRules = [];
         let ruleIdCounter = 1;
 
-        domains.forEach(domainObj => {
+        const isExtensionOn = globalThis.bgapp.getSetting("isExtensionOn") !== "false";
+
+        if (isExtensionOn) {
+            domains.forEach(domainObj => {
             if (!domainObj.on) return;
             
             const rules = domainObj.rules || [];
@@ -66,6 +69,7 @@ export async function updateDNRRules() {
                 // headerRule and fileOverride can also be added here in the future
             });
         });
+        } // Close isExtensionOn block
 
         // Get existing rules to remove them
         const existingRules = await chrome.declarativeNetRequest.getDynamicRules();

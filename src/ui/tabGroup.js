@@ -200,6 +200,32 @@
         }
     });
 
+    app.addRuleToFirstDomain = function(type) {
+        const domain = $(".domainContainer").first();
+        if (!domain.length) return;
+        
+        const id = domain[0].id;
+        const saveFunc = util.debounce(createSaveFunction(id), 700);
+        const overrideRulesContainer = domain.find(".overrideRules");
+        
+        const mvRules = app.moveableRules(overrideRulesContainer[0], ".handle");
+
+        const addRuleCallback = function(markup) {
+            mvRules.assignHandleListener(markup.find(".handle")[0]);
+            overrideRulesContainer.append(markup);
+            saveFunc();
+        };
+
+        if (type === "webRule") {
+            addRuleCallback(app.createWebOverrideMarkup({}, saveFunc));
+        } else if (type === "headerRule") {
+            addRuleCallback(app.createHeaderRuleMarkup({}, saveFunc));
+        } else if (type === "injectRule") {
+            // Defaulting CSS/JS Injection to file inject
+            addRuleCallback(app.createFileInjectMarkup({}, saveFunc));
+        }
+    };
+
     app.createDomainMarkup = createDomainMarkup;
     app.getDomainData = getDomainData;
 

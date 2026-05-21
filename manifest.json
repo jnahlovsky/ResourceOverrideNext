@@ -10,12 +10,10 @@
   "action": {
     "default_icon": {
       "16": "icons/icon-16x16.png"
-    }
+    },
+    "default_popup": "index.html"
   },
   "devtools_page": "src/ui/devtools.html",
-  "options_ui": {
-    "page": "index.html"
-  },
   "background": {
     "service_worker": "src/extension/background.js",
     "type": "module"

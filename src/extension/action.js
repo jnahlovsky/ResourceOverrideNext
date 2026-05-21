@@ -1,20 +1,12 @@
+/* global bgapp, chrome */
 {
-    chrome.action.onClicked.addListener(() => {
-        const optionsUrl = chrome.runtime.getURL("index.html");
-        
-        chrome.tabs.query({}, function(extensionTabs) {
-            let found = false;
-            for (let i = 0, len = extensionTabs.length; i < len; i++) {
-                if (extensionTabs[i].url && extensionTabs[i].url.split('#')[0].split('?')[0] === optionsUrl) {
-                    found = true;
-                    chrome.tabs.update(extensionTabs[i].id, {active: true});
-                    chrome.windows.update(extensionTabs[i].windowId, {focused: true});
-                    break;
-                }
-            }
-            if (!found) {
-                chrome.tabs.create({url: optionsUrl});
-            }
+    // Set initial title based on state on load (Background worker still needs to handle initial badge)
+    chrome.storage.local.get(["isExtensionOn"], function(result) {
+        const isOn = result.isExtensionOn !== "false";
+        chrome.action.setTitle({
+            title: isOn ? "Resource Override (ON)" : "Resource Override (OFF)"
         });
+        chrome.action.setBadgeText({ text: isOn ? "" : "OFF" });
+        chrome.action.setBadgeBackgroundColor({ color: "#FF0000" });
     });
 }

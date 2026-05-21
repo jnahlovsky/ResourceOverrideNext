@@ -406,6 +406,68 @@ div, span {
     text-align: center;
 }
 
+.ruleContainer.normalOverride {
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fafafa;
+    margin-bottom: 12px;
+}
+
+.ruleContainer.normalOverride .rule-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.ruleContainer.normalOverride .handle {
+    padding: 0;
+    margin-right: 10px;
+}
+
+.ruleContainer.normalOverride .switch {
+    flex: 0 0 90px;
+    margin-left: auto;
+}
+
+.ruleContainer.normalOverride .delete {
+    flex: 0 0 36px;
+}
+
+.ruleContainer.normalOverride .rule-body {
+    display: flex;
+    flex-direction: column;
+    padding-left: 35px; /* Indent slightly under handle */
+}
+
+.ruleContainer.normalOverride .rule-body > div {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 8px;
+}
+
+.ruleContainer.normalOverride .rule-body label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 4px;
+}
+
+.ruleContainer.normalOverride .rule-body .rule {
+    margin: 0;
+    flex: 1 1 auto;
+}
+
+.ruleContainer.normalOverride input {
+    height: 28px;
+    padding: 4px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 100%;
+}
+
 .ruleContainer .injectText {
     flex: 0 0 60px;
     padding-top: 10px;

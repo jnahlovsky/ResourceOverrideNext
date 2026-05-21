@@ -7,7 +7,8 @@ describe('updateDNRRules', () => {
         globalThis.bgapp = {
             mainStorage: {
                 getAll: vi.fn()
-            }
+            },
+            getSetting: vi.fn().mockReturnValue("true")
         };
 
         // Mock global chrome API
@@ -133,6 +134,30 @@ describe('updateDNRRules', () => {
         await updateDNRRules();
 
         // Should update with empty addRules array since both rules are inactive
+        expect(globalThis.chrome.declarativeNetRequest.updateDynamicRules).toHaveBeenCalledWith({
+            removeRuleIds: [999],
+            addRules: []
+        });
+    });
+
+    it('should clear rules when isExtensionOn is false', async () => {
+        globalThis.bgapp.getSetting.mockReturnValue("false");
+        globalThis.bgapp.mainStorage.getAll.mockResolvedValue([
+            {
+                on: true,
+                rules: [
+                    {
+                        on: true,
+                        type: 'normalOverride',
+                        match: 'test',
+                        replace: 'test'
+                    }
+                ]
+            }
+        ]);
+
+        await updateDNRRules();
+
         expect(globalThis.chrome.declarativeNetRequest.updateDynamicRules).toHaveBeenCalledWith({
             removeRuleIds: [999],
             addRules: []

@@ -5,13 +5,17 @@
 
     const ui = {};
 
-    // pre-fetch all major ui.
-    $("[id]").each(function(idx, el) {
-        ui[el.id] = $(el);
-    });
+    function initUI() {
+        // pre-fetch all major ui.
+        $("[id]").each(function(idx, el) {
+            ui[el.id] = $(el);
+        });
 
-    const app = {
-        ui: ui
-    };
-    window.app = app;
+        // Ensure app object exists
+        window.app = window.app || {};
+        window.app.ui = ui;
+    }
+
+    // Expose init function
+    window.initLegacyUI = initUI;
 })();
