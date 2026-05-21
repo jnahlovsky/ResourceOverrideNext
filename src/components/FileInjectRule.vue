@@ -2,40 +2,24 @@
   <RuleCard :rule="rule" @toggle="toggle" @delete="remove">
     <div class="grid grid-cols-[2fr_1fr_1fr_2fr] gap-4 items-end">
       <div class="space-y-1.5">
-        <Label class="text-[13px] font-medium text-slate-700">File Name <span class="font-normal text-slate-500">(Optional)</span></Label>
-        <Input v-model="localRule.fileName" @change="save" placeholder="File Name" class="text-[13px] bg-white border-slate-300 rounded-sm h-9 shadow-none" />
+        <label class="text-[13px] font-medium text-slate-700 block">File Name <span class="font-normal text-slate-500">(Optional)</span></label>
+        <UInput v-model="localRule.fileName" @change="save" placeholder="File Name" class="text-[13px]" :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none h-9' }" />
       </div>
 
       <div class="space-y-1.5">
-        <Label class="text-[13px] font-medium text-slate-700">File Type</Label>
-        <Select v-model="localRule.fileType" @update:modelValue="save">
-          <SelectTrigger class="h-9 rounded-sm border-slate-300 bg-white shadow-none text-[13px]">
-            <SelectValue placeholder="Select type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="js">JS</SelectItem>
-            <SelectItem value="css">CSS</SelectItem>
-          </SelectContent>
-        </Select>
+        <label class="text-[13px] font-medium text-slate-700 block">File Type</label>
+        <USelect v-model="localRule.fileType" @change="save" :items="[{ label: 'JS', value: 'js' }, { label: 'CSS', value: 'css' }]" class="h-9 rounded-sm border-slate-300 bg-white shadow-none text-[13px]" />
       </div>
 
       <div class="space-y-1.5">
-        <Label class="text-[13px] font-medium text-slate-700">Inject into</Label>
-        <Select v-model="localRule.injectLocation" @update:modelValue="save">
-          <SelectTrigger class="h-9 rounded-sm border-slate-300 bg-white shadow-none text-[13px]">
-            <SelectValue placeholder="Select location" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="head">Head</SelectItem>
-            <SelectItem value="body">Body</SelectItem>
-          </SelectContent>
-        </Select>
+        <label class="text-[13px] font-medium text-slate-700 block">Inject into</label>
+        <USelect v-model="localRule.injectLocation" @change="save" :items="[{ label: 'Head', value: 'head' }, { label: 'Body', value: 'body' }]" class="h-9 rounded-sm border-slate-300 bg-white shadow-none text-[13px]" />
       </div>
 
       <div class="space-y-1.5">
-        <Button variant="outline" class="w-full text-[13px] font-normal text-slate-700 bg-white border-slate-300 rounded-sm h-9 shadow-none hover:bg-slate-50" @click="editFile">
+        <UButton variant="outline" class="w-full justify-center text-[13px] font-normal text-slate-700 bg-white border-slate-300 rounded-sm h-9 shadow-none hover:bg-slate-50" @click="editFile">
             Edit File Content
-        </Button>
+        </UButton>
       </div>
     </div>
   </RuleCard>
@@ -44,10 +28,6 @@
 <script setup>
 import { ref, watch } from 'vue';
 import RuleCard from './RuleCard.vue';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
 
 const props = defineProps({
   rule: { type: Object, required: true }

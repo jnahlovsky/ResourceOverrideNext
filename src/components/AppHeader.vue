@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-[#f4f4f5] px-6 py-4 flex justify-between items-center relative z-10">
+  <div class="bg-[#f4f4f5] px-6 py-4 flex justify-between items-center relative z-10 border-b border-slate-200">
       <div class="flex-1">
           <!-- spacer -->
       </div>
@@ -10,14 +10,13 @@
           <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
             {{ isExtensionOn ? 'ON' : 'OFF' }}
           </span>
-          <Switch :model-value="isExtensionOn" @update:model-value="toggleExtension" />
+          <USwitch :model-value="isExtensionOn" @update:model-value="toggleExtension" />
       </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { Switch } from '@/components/ui/switch';
 
 const isExtensionOn = ref(true);
 
