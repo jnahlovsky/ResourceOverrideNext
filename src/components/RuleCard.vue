@@ -1,7 +1,7 @@
 <template>
-  <div class="mb-2 rounded-md border border-slate-200 shadow-sm bg-white overflow-hidden transition-colors" :class="!rule.on ? 'opacity-70 grayscale-[20%]' : ''">
+  <div class="mb-2 rounded-md border border-slate-200 shadow-sm bg-white transition-colors" :class="!rule.on ? 'opacity-70 grayscale-[20%]' : ''">
     <!-- Header Area -->
-    <div class="flex items-center justify-between px-2.5 py-1.5 bg-slate-200">
+    <div class="flex items-center justify-between px-2.5 py-1.5 bg-slate-200 rounded-t-md">
       <div class="flex items-center gap-2">
         <span class="text-[11px] font-bold tracking-wider uppercase text-slate-500">{{ ruleTitle }}</span>
       </div>

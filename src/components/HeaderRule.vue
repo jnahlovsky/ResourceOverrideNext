@@ -52,24 +52,29 @@
           v-for="(headerRow, index) in combinedRules" 
           :key="headerRow._id" 
           class="flex items-center gap-1.5"
+          :style="{ zIndex: combinedRules.length - index }"
         >
           <!-- Type Select -->
-          <USelect 
+          <select 
             v-model="headerRow.type" 
-            :options="[{ label: 'Req', value: 'request' }, { label: 'Res', value: 'response' }]" 
-            class="w-[75px]"
-            size="sm"
+            class="w-[100px] h-7 text-[12px] rounded-md border-0 ring-1 ring-inset ring-slate-300 bg-white pl-2 pr-6 appearance-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 text-slate-700 shadow-sm bg-no-repeat bg-[right_0.4rem_center] bg-[length:12px_12px]"
+            style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22 fill=%22%2364748b%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z%22 clip-rule=%22evenodd%22/%3E%3C/svg%3E');"
             @change="save"
-          />
+          >
+            <option value="request">Request</option>
+            <option value="response">Response</option>
+          </select>
 
           <!-- Operation Select -->
-          <USelect 
+          <select 
             v-model="headerRow.operation" 
-            :options="[{ label: 'Set', value: 'set' }, { label: 'Remove', value: 'remove' }]" 
-            class="w-[80px]"
-            size="sm"
+            class="w-[85px] h-7 text-[12px] rounded-md border-0 ring-1 ring-inset ring-slate-300 bg-white pl-2 pr-6 appearance-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 text-slate-700 shadow-sm bg-no-repeat bg-[right_0.4rem_center] bg-[length:12px_12px]"
+            style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22 fill=%22%2364748b%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z%22 clip-rule=%22evenodd%22/%3E%3C/svg%3E');"
             @change="save"
-          />
+          >
+            <option value="set">Set</option>
+            <option value="remove">Remove</option>
+          </select>
 
           <!-- Header Name Input -->
           <UInput 
