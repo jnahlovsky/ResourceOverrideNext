@@ -23,5 +23,9 @@
         const obj = {};
         obj[setting] = value;
         chrome.storage.local.set(obj);
+
+        if (setting === "isExtensionOn" && typeof bgapp.updateActionState === "function") {
+            bgapp.updateActionState(value !== "false");
+        }
     };
 }

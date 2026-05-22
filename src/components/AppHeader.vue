@@ -42,11 +42,11 @@ const toggleExtension = (checked) => {
             setting: "isExtensionOn",
             value: newState
         }, () => {
-            chrome.action.setTitle({
-                title: checked ? "Resource Override (ON)" : "Resource Override (OFF)"
-            });
-            chrome.action.setBadgeText({ text: checked ? "" : "OFF" });
-            chrome.action.setBadgeBackgroundColor({ color: checked ? "#22c55e" : "#94a3b8" });
+            // chrome.action.setTitle({
+            //     title: checked ? "Resource Override (ON)" : "Resource Override (OFF)"
+            // });
+            // chrome.action.setBadgeText({ text: checked ? "" : "OFF" });
+            // chrome.action.setBadgeBackgroundColor({ color: checked ? "#22c55e" : "#94a3b8" });
             chrome.runtime.sendMessage({ action: "updateDNRRules" });
         });
     }
