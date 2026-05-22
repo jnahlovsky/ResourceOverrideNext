@@ -89,11 +89,16 @@
           <UButton variant="ghost" color="neutral" size="sm" class="font-medium text-slate-600" icon="i-lucide-download" @click="handleImport">Import</UButton>
           <UButton variant="ghost" color="neutral" size="sm" class="font-medium text-slate-600 mr-2" icon="i-lucide-upload" @click="handleExport">Export</UButton>
 
-          <UDropdown v-if="activeTab === 'injections'" :items="[[{ label: 'URL to File', click: () => addEmptyRule('fileOverride') }, { label: 'Inject File', click: () => addEmptyRule('fileInject') }]]">
+          <UDropdownMenu 
+            v-if="activeTab === 'injections'" 
+            :items="[{ label: 'URL to File', onSelect: () => addEmptyRule('fileOverride') }, { label: 'Inject File', onSelect: () => addEmptyRule('fileInject') }]"
+            :content="{ side: 'top', align: 'end', sideOffset: 8 }"
+            :ui="{ content: 'z-[100]' }"
+          >
             <UButton color="primary" class="font-semibold px-4 h-9 shadow-sm" icon="i-lucide-plus" trailing-icon="i-lucide-chevron-down">
               Add Rule
             </UButton>
-          </UDropdown>
+          </UDropdownMenu>
 
           <UButton v-else color="primary" @click="addEmptyRule(activeTab === 'headers' ? 'headerRule' : 'normalOverride')" class="font-semibold px-4 h-9 shadow-sm" icon="i-lucide-plus">
             Add Rule
@@ -102,6 +107,13 @@
       </div>
       <input type="file" id="fileInput" accept=".json" class="hidden">
     </div>
+
+    <!-- File Editor Modal -->
+    <CodeEditorModal 
+      v-model="isEditorOpen" 
+      :initial-content="editorContent" 
+      @save="handleEditorSave" 
+    />
   </UApp>
 </template>
 
@@ -115,6 +127,7 @@ import RedirectRule from './components/RedirectRule.vue';
 import HeaderRule from './components/HeaderRule.vue';
 import FileOverrideRule from './components/FileOverrideRule.vue';
 import FileInjectRule from './components/FileInjectRule.vue';
+import CodeEditorModal from './components/CodeEditorModal.vue';
 
 const activeTab = ref('redirects');
 
@@ -125,6 +138,11 @@ const tabItems = [
 ];
 
 const { domains, globalDomain, isLoading, fetchDomains, saveGlobalRule, saveDomain, deleteRule, importRules, exportRules } = useRules();
+
+// Editor state
+const isEditorOpen = ref(false);
+const editorContent = ref('');
+const editingRuleId = ref(null);
 
 onMounted(async () => {
   await fetchDomains();
@@ -235,7 +253,18 @@ const handleReset = () => {
 };
 
 const openFileEditor = (rule) => {
-  // TODO: Implement file editor modal
-  alert('File editor (Ace) will be implemented in the next phase! For now it requires the legacy UI.');
+  editingRuleId.value = rule.id;
+  editorContent.value = rule.file || '';
+  isEditorOpen.value = true;
+};
+
+const handleEditorSave = async (newContent) => {
+  if (editingRuleId.value && globalDomain.value) {
+    const rule = globalDomain.value.rules.find(r => r.id === editingRuleId.value);
+    if (rule) {
+      rule.file = newContent;
+      await saveDomain(globalDomain.value);
+    }
+  }
 };
 </script>

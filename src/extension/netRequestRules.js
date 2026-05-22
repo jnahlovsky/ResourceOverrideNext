@@ -134,8 +134,42 @@ export async function updateDNRRules() {
                             condition: condition
                         });
                     }
+                } else if (ruleObj.type === "fileOverride") {
+                    if (!ruleObj.match) return; // Skip if no match url
+
+                    const isRegex = ruleObj.match.length > 2 && ruleObj.match.startsWith('/') && ruleObj.match.endsWith('/');
+                    
+                    let condition = {};
+                    if (isRegex) {
+                        condition.regexFilter = ruleObj.match.substring(1, ruleObj.match.length - 1);
+                    } else if (ruleObj.match !== "*") {
+                        condition.urlFilter = ruleObj.match;
+                    }
+
+                    condition.resourceTypes = [
+                        "main_frame", "sub_frame", "stylesheet", "script", "image", 
+                        "font", "object", "xmlhttprequest", "ping", "csp_report", 
+                        "media", "websocket", "other"
+                    ];
+
+                    const mimeAndFile = globalThis.bgapp.extractMimeType(ruleObj.match, ruleObj.file || "");
+                    
+                    // Convert the file contents to a base64 encoded data URI
+                    const dataUri = "data:" + mimeAndFile.mime + ";charset=UTF-8;base64," + 
+                        btoa(unescape(encodeURIComponent(mimeAndFile.file)));
+
+                    addRules.push({
+                        id: ruleIdCounter++,
+                        priority: 100,
+                        action: {
+                            type: "redirect",
+                            redirect: {
+                                url: dataUri
+                            }
+                        },
+                        condition: condition
+                    });
                 }
-                // fileOverride can also be added here in the future
             });
         });
         } // Close isExtensionOn block
