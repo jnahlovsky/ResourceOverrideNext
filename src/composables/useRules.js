@@ -46,7 +46,7 @@ export function useRules() {
   const saveGlobalRule = async (newRule) => {
     await fetchDomains();
     let currentGlobal = domains.value.find(d => d.matchUrl === "*");
-    
+
     if (currentGlobal) {
       currentGlobal.rules = currentGlobal.rules || [];
       // If it has an id update it, else push
@@ -108,7 +108,7 @@ export function useRules() {
 
             const a = document.createElement("a");
             a.href = downloadUrl;
-            a.download = "ResourceOverrideRules.json";
+            a.download = "resourced-extension-rules.json";
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);

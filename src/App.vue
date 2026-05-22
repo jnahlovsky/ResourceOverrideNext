@@ -114,6 +114,9 @@
       :initial-content="editorContent" 
       @save="handleEditorSave" 
     />
+
+    <!-- Help Modal -->
+    <HelpModal v-model="isHelpOpen" />
   </UApp>
 </template>
 
@@ -128,6 +131,7 @@ import HeaderRule from './components/HeaderRule.vue';
 import FileOverrideRule from './components/FileOverrideRule.vue';
 import FileInjectRule from './components/FileInjectRule.vue';
 import CodeEditorModal from './components/CodeEditorModal.vue';
+import HelpModal from './components/HelpModal.vue';
 
 const activeTab = ref('redirects');
 
@@ -143,6 +147,9 @@ const { domains, globalDomain, isLoading, fetchDomains, saveGlobalRule, saveDoma
 const isEditorOpen = ref(false);
 const editorContent = ref('');
 const editingRuleId = ref(null);
+
+// Help Modal state
+const isHelpOpen = ref(false);
 
 onMounted(async () => {
   await fetchDomains();
@@ -244,7 +251,7 @@ const handleExport = () => {
 };
 
 const handleHelp = () => {
-  alert('Help section is coming soon!');
+  isHelpOpen.value = true;
 };
 
 const handleReset = () => {

@@ -1,6 +1,7 @@
 <template>
-  <div class="bg-gradient-to-b from-primary-50 to-white px-6 py-4 flex justify-between items-center relative z-10">
-      <div class="flex flex-1 items-center">
+  <div class="bg-linear-to-b from-primary-100 to-white px-6 py-4 flex justify-between items-center relative z-10 border-b border-slate-100">
+      <div class="flex flex-1 items-center gap-2.5">
+          <img src="/icons/icon-48x48.png" alt="Resourced Logo" class="w-7 h-7 drop-shadow-sm transition-all" :class="!isExtensionOn && 'grayscale opacity-60'" />
           <h1 class="m-0 text-[24px] font-extrabold tracking-tight text-slate-900" :class="!isExtensionOn && 'text-slate-400'">
             Resourced <span class="text-primary-500">v1</span>
           </h1>

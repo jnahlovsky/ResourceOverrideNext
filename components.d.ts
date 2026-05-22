@@ -16,6 +16,7 @@ declare module 'vue' {
     FileInjectRule: typeof import('./src/components/FileInjectRule.vue')['default']
     FileOverrideRule: typeof import('./src/components/FileOverrideRule.vue')['default']
     HeaderRule: typeof import('./src/components/HeaderRule.vue')['default']
+    HelpModal: typeof import('./src/components/HelpModal.vue')['default']
     RedirectRule: typeof import('./src/components/RedirectRule.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

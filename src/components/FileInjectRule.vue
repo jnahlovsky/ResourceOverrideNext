@@ -4,8 +4,8 @@
       <UInput 
         v-model="localRule.fileName" 
         @change="save" 
-        placeholder="File Name (Optional)" 
-        class="text-[12px] flex-1 min-w-[120px]" 
+        placeholder="File Name (Optional - triggers blob injection to bypass strict CSP)" 
+        class="text-[12px] flex-1 min-w-[200px]" 
         :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none h-7', wrapper: 'flex-1' }" 
       />
 

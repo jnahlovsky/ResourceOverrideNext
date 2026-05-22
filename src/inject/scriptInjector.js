@@ -11,7 +11,27 @@
         rules.forEach(function(rule) {
             if (rule.on && rule.type === "fileInject") {
                 var newEl = document.createElement(fileTypeToTag[rule.fileType] || "script");
-                newEl.appendChild(document.createTextNode(rule.file));
+                
+                if (rule.fileName) {
+                    newEl.setAttribute("id", "resourced-inject-" + rule.fileName.replace(/[^a-zA-Z0-9_-]/g, ''));
+                }
+
+                if (rule.fileType === "js" && rule.fileName) {
+                    // Inject JS via a blob URL if a filename is provided (acts as external script)
+                    // The filename is used to uniquely identify the injection
+                    const blob = new Blob([rule.file], { type: 'application/javascript' });
+                    newEl.src = URL.createObjectURL(blob);
+                    
+                    newEl.onload = function() {
+                        URL.revokeObjectURL(newEl.src);
+                    };
+                } else {
+                    // Default inline injection (how it worked before). 
+                    // Note: Chrome Extensions page will occasionally log a CSP warning for this, 
+                    // but it often still works depending on the target site's strictness.
+                    newEl.appendChild(document.createTextNode(rule.file));
+                }
+
                 if (rule.injectLocation === "head") {
                     var firstEl = document.head.children[0];
                     if (firstEl) {
