@@ -1,38 +1,41 @@
 <template>
-  <div class="mb-3 rounded-md border border-slate-200 shadow-sm bg-white hover:border-slate-300 transition-colors">
-    <div class="flex items-center p-2 gap-3">
-      <!-- Drag Handle -->
-      <!-- <div class="cursor-move text-slate-400 hover:text-slate-600 flex-shrink-0 px-1">
-        <UIcon name="i-lucide-grip-vertical" class="w-4 h-4" />
-      </div> -->
-
-      <!-- Main Content Area -->
-      <div class="flex-1 min-w-0">
-        <slot></slot>
+  <div class="mb-2 rounded-md border border-slate-200 shadow-sm bg-white overflow-hidden transition-colors" :class="!rule.on ? 'opacity-70 grayscale-[20%]' : ''">
+    <!-- Header Area -->
+    <div class="flex items-center justify-between px-2.5 py-1.5 bg-slate-200">
+      <div class="flex items-center gap-2">
+        <span class="text-[11px] font-bold tracking-wider uppercase text-slate-500">{{ ruleTitle }}</span>
       </div>
-
-      <!-- Actions Area -->
-      <div class="flex items-center gap-3 pl-2 border-l border-slate-100 flex-shrink-0">
-        <USwitch
-          :model-value="rule.on"
-          @update:model-value="$emit('toggle', $event)"
-          size="sm"
-          color="success"
-        />
+      <div class="flex items-center gap-3">
         <UButton
           variant="ghost"
-          color="neutral"
           icon="i-lucide-trash-2"
           @click="$emit('delete')"
-          class="text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md w-8 h-8 flex justify-center items-center transition-colors"
+          class="text-slate-500 hover:text-red-500 hover:bg-slate-300 rounded-md w-6 h-6 p-0 flex justify-center items-center transition-colors"
         />
+        <div class="w-px h-4 bg-slate-300"></div>
+        <div class="flex items-center gap-2">
+          <USwitch
+            :model-value="rule.on"
+            @update:model-value="$emit('toggle', $event)"
+            size="sm"
+            color="success"
+            :ui="{ inactive: 'bg-slate-400' }"
+          />
+        </div>
       </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="p-2 w-full">
+      <slot></slot>
     </div>
   </div>
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue';
+
+const props = defineProps({
   rule: {
     type: Object,
     required: true
@@ -40,4 +43,14 @@ defineProps({
 });
 
 defineEmits(['toggle', 'delete']);
+
+const ruleTitle = computed(() => {
+  switch (props.rule.type) {
+    case 'normalOverride': return 'URL Redirect';
+    case 'headerRule': return 'Custom Headers';
+    case 'fileOverride': return 'File Override';
+    case 'fileInject': return 'File Injection';
+    default: return 'Rule';
+  }
+});
 </script>

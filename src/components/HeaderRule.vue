@@ -1,47 +1,179 @@
 <template>
   <RuleCard :rule="rule" @toggle="toggle" @delete="remove">
-    <div class="flex items-center gap-3">
-      <UTextarea 
-        v-model="localRule.match" 
-        @change="save" 
-        autoresize
-        :rows="1"
-        :maxrows="5"
-        placeholder="Match URL (e.g. *://example.com/*)" 
-        class="font-mono text-[13px] flex-1" 
-        :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none py-1 min-h-[32px]', wrapper: 'flex-1' }" 
-      />
-      
-      <UButton 
-        variant="soft" 
-        class="text-[13px] font-medium h-8 whitespace-nowrap self-start" 
-        @click="editHeaders"
-      >
-        Headers ({{ reqCount }})
-      </UButton>
+    <div class="flex flex-col gap-1.5">
+      <!-- Top Row: Match URL -->
+      <div class="flex items-center gap-2">
+        <UTextarea 
+          v-model="localRule.match" 
+          @change="save" 
+          autoresize
+          :rows="1"
+          :maxrows="5"
+          placeholder="Source URL Pattern (e.g. example.com or /.*example.*\.com/.*/)" 
+          class="font-mono text-[12px] flex-1" 
+          :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none py-1 min-h-[28px]', wrapper: 'flex-1' }" 
+        />
+      </div>
+
+      <!-- Action Bar -->
+      <div class="flex justify-between items-center mt-1">
+        <span class="text-[12px] font-semibold text-slate-700">Header Key-Value Pairs</span>
+        <div class="flex gap-1.5">
+          <UButton 
+            variant="soft" 
+            color="primary"
+            size="xs"
+            class="text-[11px] px-2 py-0.5 font-medium" 
+            icon="i-lucide-arrow-up"
+            @click="addRule('request')"
+          >
+            Request
+          </UButton>
+          <UButton 
+            variant="soft" 
+            color="primary"
+            size="xs"
+            class="text-[11px] px-2 py-0.5 font-medium" 
+            icon="i-lucide-arrow-down"
+            @click="addRule('response')"
+          >
+            Response
+          </UButton>
+        </div>
+      </div>
+
+      <!-- Headers List -->
+      <div class="flex flex-col gap-1.5 bg-slate-50 p-2 rounded-md border border-slate-200 min-h-[40px]">
+        <div v-if="combinedRules.length === 0" class="text-center text-slate-400 text-[11px] py-1">
+          No headers configured. Add a request or response header above.
+        </div>
+        
+        <div 
+          v-for="(headerRow, index) in combinedRules" 
+          :key="headerRow._id" 
+          class="flex items-center gap-1.5"
+        >
+          <!-- Type Select -->
+          <USelect 
+            v-model="headerRow.type" 
+            :options="[{ label: 'Req', value: 'request' }, { label: 'Res', value: 'response' }]" 
+            class="w-[75px]"
+            size="sm"
+            @change="save"
+          />
+
+          <!-- Operation Select -->
+          <USelect 
+            v-model="headerRow.operation" 
+            :options="[{ label: 'Set', value: 'set' }, { label: 'Remove', value: 'remove' }]" 
+            class="w-[80px]"
+            size="sm"
+            @change="save"
+          />
+
+          <!-- Header Name Input -->
+          <UInput 
+            v-model="headerRow.header" 
+            placeholder="Name" 
+            class="flex-1"
+            size="sm"
+            @change="save"
+          />
+
+          <!-- Header Value Input -->
+          <UInput 
+            v-model="headerRow.value" 
+            :placeholder="headerRow.operation === 'remove' ? 'Not needed' : 'Value'" 
+            :disabled="headerRow.operation === 'remove'"
+            class="flex-1"
+            size="sm"
+            @change="save"
+          />
+
+          <!-- Delete Row Button -->
+          <UButton 
+            color="red" 
+            variant="ghost" 
+            icon="i-lucide-trash-2" 
+            size="2xs"
+            class="w-6 h-6 p-0 flex justify-center items-center"
+            @click="removeRule(index)"
+          />
+        </div>
+      </div>
+
     </div>
   </RuleCard>
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue';
+import { ref, watch } from 'vue';
 import RuleCard from './RuleCard.vue';
 
 const props = defineProps({
   rule: { type: Object, required: true }
 });
-const emit = defineEmits(['update', 'delete', 'edit-headers']);
+const emit = defineEmits(['update', 'delete']);
 
 const localRule = ref({ ...props.rule });
 
+// Internal state to hold combined rules for the UI
+const combinedRules = ref([]);
+
+// Helper to generate a unique ID for Vue loop keys
+const generateId = () => Math.random().toString(36).substr(2, 9);
+
+// Map from rule object to internal state
+const initializeCombinedRules = (rule) => {
+  const reqRules = (rule.requestRules || []).map(r => ({ ...r, type: 'request', _id: generateId() }));
+  const resRules = (rule.responseRules || []).map(r => ({ ...r, type: 'response', _id: generateId() }));
+  combinedRules.value = [...reqRules, ...resRules];
+};
+
+// Initial load
+initializeCombinedRules(props.rule);
+
 watch(() => props.rule, (newVal) => {
   localRule.value = { ...newVal };
+  // Only re-initialize if the underlying data completely changed from outside to avoid jumping inputs
+  // We'll trust our internal `combinedRules` state during active editing
 }, { deep: true });
 
-const reqCount = computed(() => localRule.value.requestRules ? localRule.value.requestRules.length : 0);
-
 const save = () => {
+  // Map combined rules back to request/response arrays
+  const requestRules = [];
+  const responseRules = [];
+
+  combinedRules.value.forEach(r => {
+    // Strip internal properties like _id and type
+    const ruleData = { operation: r.operation, header: r.header, value: r.operation === 'remove' ? '' : r.value };
+    if (r.type === 'request') {
+      requestRules.push(ruleData);
+    } else {
+      responseRules.push(ruleData);
+    }
+  });
+
+  localRule.value.requestRules = requestRules;
+  localRule.value.responseRules = responseRules;
+
   emit('update', { ...localRule.value });
+};
+
+const addRule = (type) => {
+  combinedRules.value.push({
+    _id: generateId(),
+    type: type,
+    operation: 'set',
+    header: '',
+    value: ''
+  });
+  save();
+};
+
+const removeRule = (index) => {
+  combinedRules.value.splice(index, 1);
+  save();
 };
 
 const toggle = (val) => {
@@ -51,9 +183,5 @@ const toggle = (val) => {
 
 const remove = () => {
   emit('delete');
-};
-
-const editHeaders = () => {
-    emit('edit-headers', localRule.value);
 };
 </script>

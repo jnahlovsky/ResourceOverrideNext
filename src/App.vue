@@ -4,13 +4,13 @@
       <AppHeader />
 
       <!-- Main View -->
-      <div class="flex-1 flex flex-col overflow-hidden">
-        <UTabs v-model="activeTab" :items="tabItems" class="flex-1 flex flex-col pt-0 px-0 w-full" :ui="{
-            root: 'flex-1 flex flex-col',
-            list: 'flex w-full bg-white border-b border-slate-200 p-0 rounded-none',
+      <div class="flex-1 flex flex-col overflow-hidden min-h-0">
+        <UTabs v-model="activeTab" :items="tabItems" class="flex-1 flex flex-col pt-0 px-0 w-full min-h-0" :ui="{
+            root: 'flex-1 flex flex-col min-h-0',
+            list: 'flex w-full bg-white border-b border-slate-200 p-0 rounded-none shrink-0',
             indicator: 'absolute top-auto bottom-0 h-[2px] bg-primary-500 rounded-none',
             trigger: 'flex-1 rounded-none py-3.5 text-[13px] font-semibold transition-colors data-[state=active]:text-primary-600 data-[state=inactive]:text-slate-500 hover:data-[state=inactive]:text-slate-800 focus-visible:ring-0',
-            content: 'flex-1 overflow-y-auto px-6 py-6 relative focus-visible:outline-none bg-white'
+            content: 'flex-1 overflow-y-auto px-6 py-6 relative focus-visible:outline-none bg-white min-h-0'
           }">
           <template #default="{ item, index, selected }">
             <div class="flex items-center gap-2">
@@ -49,7 +49,6 @@
                   :rule="rule"
                   @update="updateRule(rule.id, $event)"
                   @delete="deleteRuleFromDomain(globalDomain.id, rule.id)"
-                  @edit-headers="openHeaderEditor"
                 />
               </div>
 
@@ -233,12 +232,6 @@ const handleHelp = () => {
 const handleReset = () => {
     // In this context, reset usually reloads the domains.
     fetchDomains();
-};
-
-// Editor placeholders
-const openHeaderEditor = (rule) => {
-  // TODO: Implement header editor modal
-  alert('Header editor will be implemented in the next phase! For now it requires the legacy UI.');
 };
 
 const openFileEditor = (rule) => {

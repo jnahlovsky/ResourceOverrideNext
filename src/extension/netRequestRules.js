@@ -30,15 +30,26 @@ export async function updateDNRRules() {
 
                     if (isRegex) {
                         condition.regexFilter = ruleObj.match.substring(1, ruleObj.match.length - 1);
+                        
+                        // DNR regexSubstitution requires a valid string, fail fast if empty
+                        if (!ruleObj.replace) {
+                             return; // Skip this rule
+                        }
+
                         // Convert $1 to \1 for DNR regexSubstitution
                         action.redirect = {
                             regexSubstitution: ruleObj.replace.replace(/\$([0-9]+)/g, '\\$1')
                         };
                     } else {
                         // Fallback to basic urlFilter if not a regex. 
-                        // Note: capturing and substituting with * won't work perfectly in basic urlFilter DNR.
-                        // Full legacy star syntax translation to DNR regex is complex, we use urlFilter for simple matches.
                         condition.urlFilter = ruleObj.match;
+
+                        // Chrome DNR strictly requires action.redirect.url to be a valid absolute URL 
+                        // or a valid relative URL (starting with /). It cannot be empty.
+                        if (!ruleObj.replace || (!ruleObj.replace.startsWith('http') && !ruleObj.replace.startsWith('/'))) {
+                            return; // Skip this incomplete/invalid rule to prevent crashing the whole DNR update
+                        }
+
                         action.redirect = {
                             url: ruleObj.replace
                         };
