@@ -1,0 +1,26 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@nuxt/ui";
+
+@theme {
+  --color-primary-50: #effdf5;
+  --color-primary-100: #d9fbe8;
+  --color-primary-200: #bbf6d4;
+  --color-primary-300: #8aedb8;
+  --color-primary-400: #54dd98;
+  --color-primary-500: #00dc82;
+  --color-primary-600: #00b368;
+  --color-primary-700: #008a52;
+  --color-primary-800: #00663e;
+  --color-primary-900: #00452a;
+  --color-primary-950: #002617;
+}
+
+@custom-variant dark (&:is(.dark *));
+
+body {
+    font-family: 'Geist', sans-serif;
+    min-width: 650px;
+    background: #ffffff;
+}
