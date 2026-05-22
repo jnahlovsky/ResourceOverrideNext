@@ -13,6 +13,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     AppHeader: typeof import('./src/components/AppHeader.vue')['default']
     CodeEditorModal: typeof import('./src/components/CodeEditorModal.vue')['default']
+    ConfirmModal: typeof import('./src/components/ConfirmModal.vue')['default']
     FileInjectRule: typeof import('./src/components/FileInjectRule.vue')['default']
     FileOverrideRule: typeof import('./src/components/FileOverrideRule.vue')['default']
     HeaderRule: typeof import('./src/components/HeaderRule.vue')['default']

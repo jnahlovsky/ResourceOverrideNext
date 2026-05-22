@@ -117,6 +117,18 @@
 
     <!-- Help Modal -->
     <HelpModal v-model="isHelpOpen" />
+
+    <!-- Confirm/Alert Modal -->
+    <ConfirmModal 
+      v-model="isConfirmOpen"
+      :title="confirmOptions.title"
+      :message="confirmOptions.message"
+      :isAlert="confirmOptions.isAlert"
+      :confirmText="confirmOptions.confirmText"
+      :confirmColor="confirmOptions.confirmColor"
+      @confirm="handleConfirmSuccess"
+      @cancel="handleConfirmCancel"
+    />
   </UApp>
 </template>
 
@@ -132,6 +144,7 @@ import FileOverrideRule from './components/FileOverrideRule.vue';
 import FileInjectRule from './components/FileInjectRule.vue';
 import CodeEditorModal from './components/CodeEditorModal.vue';
 import HelpModal from './components/HelpModal.vue';
+import ConfirmModal from './components/ConfirmModal.vue';
 
 const activeTab = ref('redirects');
 
@@ -151,6 +164,54 @@ const editingRuleId = ref(null);
 // Help Modal state
 const isHelpOpen = ref(false);
 
+// Confirm Modal state
+const isConfirmOpen = ref(false);
+const confirmOptions = ref({
+  title: '',
+  message: '',
+  isAlert: false,
+  confirmText: 'OK',
+  confirmColor: 'primary',
+  onConfirm: null,
+  onCancel: null
+});
+
+const showAlert = (message, title = 'Notification') => {
+  confirmOptions.value = {
+    title,
+    message,
+    isAlert: true,
+    confirmText: 'OK',
+    confirmColor: 'primary',
+    onConfirm: null,
+    onCancel: null
+  };
+  isConfirmOpen.value = true;
+};
+
+const showConfirm = (message, title = 'Confirm', confirmText = 'Confirm', confirmColor = 'red') => {
+  return new Promise((resolve) => {
+    confirmOptions.value = {
+      title,
+      message,
+      isAlert: false,
+      confirmText,
+      confirmColor,
+      onConfirm: () => resolve(true),
+      onCancel: () => resolve(false)
+    };
+    isConfirmOpen.value = true;
+  });
+};
+
+const handleConfirmSuccess = () => {
+  if (confirmOptions.value.onConfirm) confirmOptions.value.onConfirm();
+};
+
+const handleConfirmCancel = () => {
+  if (confirmOptions.value.onCancel) confirmOptions.value.onCancel();
+};
+
 onMounted(async () => {
   await fetchDomains();
 
@@ -166,13 +227,13 @@ onMounted(async () => {
                   const data = JSON.parse(event.target.result);
                   if (Array.isArray(data)) {
                       importRules(data).then(() => {
-                        alert("Rules imported successfully!");
+                        showAlert("Rules successfully imported and applied.", "Import Successful");
                       });
                   } else {
-                      alert("Invalid JSON format. Expected an array of domains.");
+                      showAlert("Invalid JSON format. Expected an array of domains.", "Import Failed");
                   }
               } catch (err) {
-                  alert("Failed to parse JSON file.");
+                  showAlert("Failed to parse the JSON file. Ensure it is a valid Resource Override export.", "Import Failed");
               }
           };
           reader.readAsText(file);
@@ -216,8 +277,13 @@ const deleteRuleFromDomain = async (domainId, ruleId) => {
     (rule.type === 'fileInject' && !rule.fileName)
   );
 
-  if(isEmpty || confirm('Are you sure you want to delete this rule?')) {
+  if (isEmpty) {
     await deleteRule(domainId, ruleId);
+  } else {
+    const isConfirmed = await showConfirm('Are you sure you want to delete this rule? This action cannot be undone.', 'Delete Rule', 'Delete', 'red');
+    if (isConfirmed) {
+      await deleteRule(domainId, ruleId);
+    }
   }
 };
 
