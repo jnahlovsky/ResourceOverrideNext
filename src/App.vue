@@ -89,6 +89,10 @@
           <UButton variant="ghost" color="neutral" size="sm" class="font-medium text-slate-600" icon="i-lucide-download" @click="handleImport">Import</UButton>
           <UButton variant="ghost" color="neutral" size="sm" class="font-medium text-slate-600 mr-2" icon="i-lucide-upload" @click="handleExport">Export</UButton>
 
+          <UButton variant="outline" color="primary" @click="isTestOpen = true" class="font-semibold px-4 h-9 shadow-sm" icon="i-lucide-flask-conical">
+            Test Rules
+          </UButton>
+
           <UDropdownMenu 
             v-if="activeTab === 'injections'" 
             :items="[{ label: 'URL to File', onSelect: () => addEmptyRule('fileOverride') }, { label: 'Inject File', onSelect: () => addEmptyRule('fileInject') }]"
@@ -118,6 +122,9 @@
     <!-- Help Modal -->
     <HelpModal v-model="isHelpOpen" />
 
+    <!-- Test Rules Modal -->
+    <TestRulesModal v-model="isTestOpen" :rules="globalRules" />
+
     <!-- Confirm/Alert Modal -->
     <ConfirmModal 
       v-model="isConfirmOpen"
@@ -145,6 +152,7 @@ import FileInjectRule from './components/FileInjectRule.vue';
 import CodeEditorModal from './components/CodeEditorModal.vue';
 import HelpModal from './components/HelpModal.vue';
 import ConfirmModal from './components/ConfirmModal.vue';
+import TestRulesModal from './components/TestRulesModal.vue';
 
 const activeTab = ref('redirects');
 
@@ -163,6 +171,9 @@ const editingRuleId = ref(null);
 
 // Help Modal state
 const isHelpOpen = ref(false);
+
+// Test Rules state
+const isTestOpen = ref(false);
 
 // Confirm Modal state
 const isConfirmOpen = ref(false);

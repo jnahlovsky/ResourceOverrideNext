@@ -1,4 +1,4 @@
-function tokenize(str) {
+export function tokenize(str) {
     "use strict";
     var ans = str.split(/(\*+)/g);
     if (ans[0] === "") {
@@ -10,8 +10,13 @@ function tokenize(str) {
     return ans;
 }
 
-function match(pattern, str) {
+export function match(pattern, str) {
     "use strict";
+    // Early exit if pattern is empty (often the case for new rules)
+    if (!pattern) return { matched: false };
+    // Handle global wildcard matching all URLs
+    if (pattern === "*") return { matched: true, isRegex: false, freeVars: { 1: [str] } };
+
     if (pattern.length > 2 && pattern.startsWith('/') && pattern.endsWith('/')) {
         try {
             var regex = new RegExp(pattern.substring(1, pattern.length - 1));
@@ -84,15 +89,17 @@ function match(pattern, str) {
     };
 }
 
-function replaceAfter(str, idx, match, replace) {
+export function replaceAfter(str, idx, matchToken, replace) {
     "use strict";
-    return str.substring(0, idx) + str.substring(idx).replace(match, replace);
+    return str.substring(0, idx) + str.substring(idx).replace(matchToken, replace);
 }
 
-function matchReplace(pattern, replacePattern, str) {
+export function matchReplace(pattern, replacePattern, str) {
     "use strict";
+    if (!replacePattern) return str;
+    
     var matchData;
-    if (pattern.matched !== undefined && pattern.freeVars !== undefined) {
+    if (typeof pattern === 'object' && pattern.matched !== undefined) {
         // accept match objects.
         matchData = pattern;
     } else {
@@ -124,9 +131,6 @@ function matchReplace(pattern, replacePattern, str) {
     return replacePattern;
 }
 
-if (typeof module === "object" && module.exports) {
-    module.exports = matchReplace;
-}
-
+// Preserve backwards compatibility for background scripts that load this globally via service worker imports
 globalThis.match = match;
 globalThis.matchReplace = matchReplace;
