@@ -59,7 +59,6 @@
             v-model="headerRow.type" 
             class="w-[100px] h-7 text-[12px] rounded-md border-0 ring-1 ring-inset ring-slate-300 bg-white pl-2 pr-6 appearance-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 text-slate-700 shadow-sm bg-no-repeat bg-[right_0.4rem_center] bg-[length:12px_12px]"
             style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22 fill=%22%2364748b%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z%22 clip-rule=%22evenodd%22/%3E%3C/svg%3E');"
-            @change="save"
           >
             <option value="request">Request</option>
             <option value="response">Response</option>
@@ -70,7 +69,6 @@
             v-model="headerRow.operation" 
             class="w-[85px] h-7 text-[12px] rounded-md border-0 ring-1 ring-inset ring-slate-300 bg-white pl-2 pr-6 appearance-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 text-slate-700 shadow-sm bg-no-repeat bg-[right_0.4rem_center] bg-[length:12px_12px]"
             style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22 fill=%22%2364748b%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z%22 clip-rule=%22evenodd%22/%3E%3C/svg%3E');"
-            @change="save"
           >
             <option value="set">Set</option>
             <option value="remove">Remove</option>
@@ -82,7 +80,6 @@
             placeholder="Name" 
             class="flex-1"
             size="sm"
-            @change="save"
           />
 
           <!-- Header Value Input -->
@@ -92,7 +89,6 @@
             :disabled="headerRow.operation === 'remove'"
             class="flex-1"
             size="sm"
-            @change="save"
           />
 
           <!-- Delete Row Button -->
@@ -142,6 +138,11 @@ watch(() => props.rule, (newVal) => {
   localRule.value = { ...newVal };
   // Only re-initialize if the underlying data completely changed from outside to avoid jumping inputs
   // We'll trust our internal `combinedRules` state during active editing
+}, { deep: true });
+
+// Watch internal combinedRules array to trigger save whenever ANY row changes
+watch(combinedRules, () => {
+  save();
 }, { deep: true });
 
 const save = () => {

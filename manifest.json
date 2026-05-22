@@ -31,7 +31,9 @@
     }
   ],
   "permissions": [
+    "declarativeNetRequest",
     "declarativeNetRequestWithHostAccess",
+    "declarativeNetRequestFeedback",
     "scripting",
     "storage",
     "tabs",

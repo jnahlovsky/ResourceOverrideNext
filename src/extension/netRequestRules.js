@@ -76,8 +76,66 @@ export async function updateDNRRules() {
                         action: action,
                         condition: condition
                     });
+                } else if (ruleObj.type === "headerRule") {
+                    const isRegex = ruleObj.match.length > 2 && ruleObj.match.startsWith('/') && ruleObj.match.endsWith('/');
+                    
+                    let condition = {};
+                    if (isRegex) {
+                        condition.regexFilter = ruleObj.match.substring(1, ruleObj.match.length - 1);
+                    } else if (ruleObj.match === "*" || ruleObj.match === "") {
+                        // DNR uses '*' to match everything, but it's better to just leave urlFilter undefined for 'match all'
+                    } else {
+                        condition.urlFilter = ruleObj.match;
+                    }
+
+                    condition.resourceTypes = [
+                        "main_frame", "sub_frame", "stylesheet", "script", "image", 
+                        "font", "object", "xmlhttprequest", "ping", "csp_report", 
+                        "media", "websocket", "other"
+                    ];
+
+                    let action = {
+                        type: "modifyHeaders",
+                        requestHeaders: [],
+                        responseHeaders: []
+                    };
+
+                    if (ruleObj.requestRules && ruleObj.requestRules.length > 0) {
+                        ruleObj.requestRules.forEach(req => {
+                            if (!req.header) return;
+                            const headerMod = { header: req.header, operation: req.operation };
+                            if (req.operation !== "remove") {
+                                headerMod.value = req.value || "";
+                            }
+                            action.requestHeaders.push(headerMod);
+                        });
+                    }
+
+                    if (ruleObj.responseRules && ruleObj.responseRules.length > 0) {
+                        ruleObj.responseRules.forEach(res => {
+                            if (!res.header) return;
+                            const headerMod = { header: res.header, operation: res.operation };
+                            if (res.operation !== "remove") {
+                                headerMod.value = res.value || "";
+                            }
+                            action.responseHeaders.push(headerMod);
+                        });
+                    }
+
+                    // Clean up empty arrays to avoid DNR validation errors
+                    if (action.requestHeaders.length === 0) delete action.requestHeaders;
+                    if (action.responseHeaders.length === 0) delete action.responseHeaders;
+
+                    if (action.requestHeaders || action.responseHeaders) {
+                        addRules.push({
+                            id: ruleIdCounter++,
+                            priority: 100,
+                            action: action,
+                            condition: condition
+                        });
+                    }
                 }
-                // headerRule and fileOverride can also be added here in the future
+                // fileOverride can also be added here in the future
             });
         });
         } // Close isExtensionOn block
