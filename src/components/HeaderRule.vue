@@ -1,17 +1,20 @@
 <template>
   <RuleCard :rule="rule" @toggle="toggle" @delete="remove">
     <div class="flex items-center gap-3">
-      <UInput 
+      <UTextarea 
         v-model="localRule.match" 
         @change="save" 
+        autoresize
+        :rows="1"
+        :maxrows="5"
         placeholder="Match URL (e.g. *://example.com/*)" 
         class="font-mono text-[13px] flex-1" 
-        :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none h-8', wrapper: 'flex-1' }" 
+        :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none py-1 min-h-[32px]', wrapper: 'flex-1' }" 
       />
       
       <UButton 
         variant="soft" 
-        class="text-[13px] font-medium h-8 whitespace-nowrap" 
+        class="text-[13px] font-medium h-8 whitespace-nowrap self-start" 
         @click="editHeaders"
       >
         Headers ({{ reqCount }})

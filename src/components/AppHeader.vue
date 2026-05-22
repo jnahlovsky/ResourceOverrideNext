@@ -1,13 +1,15 @@
 <template>
-  <div class="bg-[#f4f4f5] px-6 py-4 flex justify-between items-center relative z-10 border-b border-slate-200">
+  <div class="bg-gradient-to-b from-primary-50 to-white px-6 py-4 flex justify-between items-center relative z-10">
       <div class="flex flex-1 items-center">
-          <h1 class="text-[#127db3] m-0 text-[22px] font-bold tracking-tight">Resourced</h1>
+          <h1 class="m-0 text-[24px] font-extrabold tracking-tight text-slate-900" :class="!isExtensionOn && 'text-slate-400'">
+            Resourced <span class="text-primary-500">v1</span>
+          </h1>
       </div>
-      <div class="flex flex-1 justify-end items-center gap-2" v-if="isExtensionOn !== null">
-          <span class="text-xs font-semibold uppercase tracking-wider" :class="isExtensionOn ? 'text-green-600' : 'text-slate-400'">
-            {{ isExtensionOn ? 'ON' : 'OFF' }}
+      <div class="flex flex-1 justify-end items-center gap-3" v-if="isExtensionOn !== null">
+          <span class="text-xs font-bold uppercase tracking-wider" :class="isExtensionOn ? 'text-primary-600' : 'text-slate-400'">
+            {{ isExtensionOn ? 'Active' : 'Disabled' }}
           </span>
-          <USwitch :model-value="isExtensionOn" @update:model-value="toggleExtension" color="success" />
+          <USwitch :model-value="isExtensionOn" @update:model-value="toggleExtension" color="success" size="lg" />
       </div>
   </div>
 </template>

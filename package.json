@@ -1,7 +1,7 @@
 {
-  "name": "vue3-mv3-migration",
+  "name": "resourced-extension",
   "version": "1.0.0",
-  "description": "## !!! Development on RO has stopped indefinitely !!!",
+  "description": "A Vue 3 application for managing resource overrides in a Chrome extension.",
   "type": "module",
   "main": "index.js",
   "directories": {

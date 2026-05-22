@@ -1,15 +1,21 @@
 <template>
   <UApp>
-    <div id="vue-root" class="flex flex-col h-full bg-[#f4f4f5] w-[750px] min-h-[550px]">
+    <div id="vue-root" class="flex flex-col bg-white w-[750px] h-[550px]">
       <AppHeader />
 
       <!-- Main View -->
       <div class="flex-1 flex flex-col overflow-hidden">
-        <UTabs v-model="activeTab" :items="tabItems" class="flex-1 flex flex-col pt-0 px-0 w-full" :ui="{ root: 'flex-1 flex flex-col', list: 'flex w-full bg-white p-0 h-auto border-b border-slate-200 rounded-none space-x-0', indicator: 'bg-[#2563eb]', trigger: 'flex-1 rounded-none py-2.5 text-[13px] font-medium transition-none h-full shadow-none border-none data-[state=active]:bg-[#2563eb] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-slate-600 focus-visible:ring-0', content: 'flex-1 overflow-y-auto px-6 py-6 relative focus-visible:outline-none' }">
+        <UTabs v-model="activeTab" :items="tabItems" class="flex-1 flex flex-col pt-0 px-0 w-full" :ui="{
+            root: 'flex-1 flex flex-col',
+            list: 'flex w-full bg-white border-b border-slate-200 p-0 rounded-none',
+            indicator: 'absolute top-auto bottom-0 h-[2px] bg-primary-500 rounded-none',
+            trigger: 'flex-1 rounded-none py-3.5 text-[13px] font-semibold transition-colors data-[state=active]:text-primary-600 data-[state=inactive]:text-slate-500 hover:data-[state=inactive]:text-slate-800 focus-visible:ring-0',
+            content: 'flex-1 overflow-y-auto px-6 py-6 relative focus-visible:outline-none bg-white'
+          }">
           <template #default="{ item, index, selected }">
             <div class="flex items-center gap-2">
-              <span>{{ item.label }}</span>
-              <UBadge :color="selected ? 'primary' : 'neutral'" variant="solid" class="rounded-full px-2 py-0 text-xs font-semibold" :class="selected ? 'bg-blue-800 text-white hover:bg-blue-800' : 'bg-slate-600 text-white hover:bg-slate-600'">{{ getRuleCount(item.value) }}</UBadge>
+              <span :class="selected ? 'text-primary-600' : ''">{{ item.label }}</span>
+              <UBadge :color="selected ? 'primary' : 'neutral'" variant="subtle" class="rounded-md px-1.5 py-0 text-[11px] font-semibold transition-colors">{{ getRuleCount(item.value) }}</UBadge>
             </div>
           </template>
 
@@ -19,11 +25,6 @@
               </div>
 
               <div v-if="item.value === 'redirects'">
-                <div class="mb-5">
-                  <h2 class="text-xl font-bold mb-2">URL Redirects</h2>
-                  <p class="text-[13px] text-slate-600">Configure URLs to be redirected to different destinations.</p>
-                </div>
-
                 <div v-if="redirectRules.length === 0" class="text-center py-8 text-slate-400">
                   No redirect rules configured.
                 </div>
@@ -38,11 +39,6 @@
               </div>
 
               <div v-else-if="item.value === 'headers'">
-                <div class="mb-5">
-                  <h2 class="text-xl font-bold mb-2">Custom Headers</h2>
-                  <p class="text-[13px] text-slate-600">Modify request and response headers.</p>
-                </div>
-
                 <div v-if="headerRules.length === 0" class="text-center py-8 text-slate-400">
                   No header rules configured.
                 </div>
@@ -58,11 +54,6 @@
               </div>
 
               <div v-else-if="item.value === 'injections'">
-                <div class="mb-5">
-                  <h2 class="text-xl font-bold mb-2">Inline/File Injection</h2>
-                  <p class="text-[13px] text-slate-600">Inject custom CSS or JavaScript into pages or files.</p>
-                </div>
-
                 <div v-if="injectionRules.length === 0" class="text-center py-8 text-slate-400">
                   No injection rules configured.
                 </div>
@@ -89,24 +80,23 @@
       </div>
 
       <!-- Fixed Footer -->
-      <div class="shrink-0 bg-[#e4e4e7] flex justify-between items-center p-3 px-6 z-50">
+      <div class="shrink-0 bg-white flex justify-between items-center p-3 px-6 z-50 border-t border-slate-100">
         <div class="flex gap-2 items-center">
-          <UButton variant="ghost" color="neutral" size="sm" class="font-medium" icon="i-lucide-refresh-cw" @click="handleReset">
-            Reset
+          <UButton variant="ghost" color="neutral" size="sm" class="font-medium text-slate-600" icon="i-lucide-help-circle" @click="handleHelp">
+            Help
           </UButton>
         </div>
         <div class="flex gap-2 items-center">
-          <UButton variant="ghost" color="neutral" size="sm" class="font-medium" @click="handleImport">Import</UButton>
-          <UButton variant="ghost" color="neutral" size="sm" class="font-medium" @click="handleExport">Export</UButton>
-          <UButton variant="ghost" color="neutral" size="sm" class="font-medium mr-2" @click="handleHelp">Help</UButton>
+          <UButton variant="ghost" color="neutral" size="sm" class="font-medium text-slate-600" icon="i-lucide-download" @click="handleImport">Import</UButton>
+          <UButton variant="ghost" color="neutral" size="sm" class="font-medium text-slate-600 mr-2" icon="i-lucide-upload" @click="handleExport">Export</UButton>
 
           <UDropdown v-if="activeTab === 'injections'" :items="[[{ label: 'URL to File', click: () => addEmptyRule('fileOverride') }, { label: 'Inject File', click: () => addEmptyRule('fileInject') }]]">
-            <UButton color="primary" class="bg-[#2563eb] hover:bg-blue-700 text-white shadow-sm font-medium h-9" icon="i-lucide-plus" trailing-icon="i-lucide-chevron-down">
+            <UButton color="primary" class="font-semibold px-4 h-9 shadow-sm" icon="i-lucide-plus" trailing-icon="i-lucide-chevron-down">
               Add Rule
             </UButton>
           </UDropdown>
 
-          <UButton v-else color="primary" @click="addEmptyRule(activeTab === 'headers' ? 'headerRule' : 'normalOverride')" class="bg-[#2563eb] hover:bg-blue-700 text-white shadow-sm font-medium h-9" icon="i-lucide-plus">
+          <UButton v-else color="primary" @click="addEmptyRule(activeTab === 'headers' ? 'headerRule' : 'normalOverride')" class="font-semibold px-4 h-9 shadow-sm" icon="i-lucide-plus">
             Add Rule
           </UButton>
         </div>
@@ -131,8 +121,8 @@ const activeTab = ref('redirects');
 
 const tabItems = [
   { label: 'URL Redirects', value: 'redirects' },
-  { label: 'Headers', value: 'headers' },
-  { label: 'CSS/JS Injection', value: 'injections' }
+  { label: 'Custom Headers', value: 'headers' },
+  { label: 'Inline/File Injection', value: 'injections' }
 ];
 
 const { domains, globalDomain, isLoading, fetchDomains, saveGlobalRule, saveDomain, deleteRule, importRules, exportRules } = useRules();
