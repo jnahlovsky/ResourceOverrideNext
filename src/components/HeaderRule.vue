@@ -1,5 +1,11 @@
 <template>
-  <RuleCard :rule="rule" @toggle="toggle" @delete="remove">
+  <RuleCard 
+    :rule="rule" 
+    @toggle="toggle" 
+    @delete="remove"
+    @update-collapse="(val) => { localRule.isCollapsed = val; save(); }"
+    @update-name="(name) => { localRule.name = name; save(); }"
+  >
     <div class="flex flex-col gap-1.5">
       <!-- Top Row: Match URL -->
       <div class="flex items-center gap-2">

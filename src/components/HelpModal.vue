@@ -1,6 +1,7 @@
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-[100] bg-white flex flex-col w-[750px] h-[550px] shadow-2xl">
-    <!-- Header -->
+  <div v-if="isOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+    <div class="bg-white flex flex-col w-[750px] max-w-[90vw] h-[550px] max-h-[90vh] shadow-2xl rounded-xl overflow-hidden">
+      <!-- Header -->
     <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0 bg-white">
       <h3 class="text-base font-semibold leading-6 text-slate-900 flex items-center gap-2">
         <UIcon name="i-lucide-book-open" class="w-5 h-5 text-primary-500" />
@@ -11,7 +12,7 @@
 
     <!-- Content Area -->
     <div class="flex-1 overflow-y-auto p-8 bg-slate-50 text-[13px] text-slate-700 space-y-8">
-      
+
       <section>
         <h4 class="text-lg font-bold text-slate-900 mb-2 border-b border-slate-200 pb-2">1. URL Redirects</h4>
         <p class="mb-3">Redirects network requests from one URL to another. Useful for testing local code on a production website.</p>
@@ -57,7 +58,8 @@
           <li><strong>Master Switch:</strong> Use the toggle in the top right of the header to quickly disable all rules at once without deleting them.</li>
         </ul>
       </section>
-      
+
+    </div>
     </div>
   </div>
 </template>

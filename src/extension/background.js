@@ -14,4 +14,16 @@ globalThis.bgapp.updateDNRRules = updateDNRRules;
 chrome.runtime.onInstalled.addListener(() => {
     console.log("Resource Override MV3 Service Worker installed.");
     updateDNRRules();
+
+    chrome.contextMenus.create({
+        id: "open_in_tab",
+        title: "Open Resource Override in New Tab",
+        contexts: ["action"]
+    });
+});
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+    if (info.menuItemId === "open_in_tab") {
+        chrome.tabs.create({ url: chrome.runtime.getURL("index.html?tab=true") });
+    }
 });

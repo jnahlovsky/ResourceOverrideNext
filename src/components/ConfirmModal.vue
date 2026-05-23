@@ -1,6 +1,6 @@
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-[2px]">
-    <div class="bg-white rounded-lg shadow-xl border border-slate-200 w-[400px] max-w-[90%] overflow-hidden flex flex-col transform transition-all">
+  <div v-if="isOpen" class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+    <div class="bg-white rounded-xl shadow-2xl w-[400px] max-w-[90%] overflow-hidden flex flex-col transform transition-all">
       <!-- Header -->
       <div class="px-5 py-3.5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
         <h3 class="text-sm font-bold text-slate-800">{{ title }}</h3>
