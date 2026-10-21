@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compileRules, attributeRedirect, matchHeaderRules, describeHeaderChanges, statusBucket } from '../src/lib/activity.js';
+import { compileRules, attributeRedirect, matchHeaderRules, describeHeaderChanges, statusBucket, toCurl, toHar } from '../src/lib/activity.js';
 
 const rules = compileRules([
     { id: 'r1', type: 'normalOverride', on: true, name: 'Frontend', match: '*/app/**', replace: 'http://localhost:8782/app/**' },
@@ -48,5 +48,31 @@ describe('activity attribution', () => {
         expect(statusBucket({ status: null })).toBe('pending');
         expect(statusBucket({ type: 'inject' })).toBe('ok');
         expect(statusBucket({ type: 'file', inline: true })).toBe('ok');
+    });
+});
+
+describe('activity exports', () => {
+    const redirect = { type: 'redirect', time: Date.UTC(2026, 9, 22, 10, 0, 0), method: 'GET', url: "https://example.com/app/it's.js", redirectUrl: 'http://localhost:8782/app/it.js', status: 200, duration: 12, ruleName: 'Frontend' };
+
+    it('builds curl commands for the original and the redirected request', () => {
+        expect(toCurl(redirect)).toBe(`curl 'https://example.com/app/it'\\''s.js'`);
+        expect(toCurl(redirect, true)).toBe(`curl 'http://localhost:8782/app/it.js'`);
+        expect(toCurl({ type: 'headers', method: 'POST', url: 'https://x/api', headers: { request: ['set X-Debug: 1', 'remove Cookie'], response: [] } }))
+            .toBe(`curl -X POST -H 'X-Debug: 1' 'https://x/api'`);
+    });
+
+    it('builds a HAR log', () => {
+        const har = toHar([redirect, { type: 'block', time: redirect.time, url: 'https://x/t.js', ruleName: 'No tracking', blocked: true }], '1.0.0');
+        expect(har.log.version).toBe('1.2');
+        expect(har.log.creator).toEqual({ name: 'Resourced', version: '1.0.0' });
+        expect(har.log.entries[0]).toMatchObject({
+            startedDateTime: '2026-10-22T10:00:00.000Z',
+            time: 12,
+            request: { method: 'GET', url: "https://example.com/app/it's.js" },
+            response: { status: 200, redirectURL: 'http://localhost:8782/app/it.js' },
+            comment: 'Redirect by rule "Frontend"'
+        });
+        expect(har.log.entries[1].response.status).toBe(0);
+        expect(har.log.entries[1].comment).toBe('Blocked by rule "No tracking"');
     });
 });

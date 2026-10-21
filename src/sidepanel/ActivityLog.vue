@@ -98,6 +98,15 @@
         >
           <UIcon name="i-lucide-trash-2" class="w-3.5 h-3.5" />
         </button>
+        <UDropdownMenu :items="moreItems" :content="{ align: 'end', sideOffset: 4 }" :ui="{ content: 'z-[100] w-64' }">
+          <button
+            type="button"
+            title="Export and options"
+            class="inline-flex items-center justify-center w-6 h-6 rounded text-emerald-100/40 ring-1 ring-white/[0.08] hover:text-emerald-100 transition-colors"
+          >
+            <UIcon name="i-lucide-ellipsis-vertical" class="w-3.5 h-3.5" />
+          </button>
+        </UDropdownMenu>
       </div>
     </div>
 
@@ -105,76 +114,101 @@
     <div class="activity-scroll flex-1 min-h-0 overflow-y-auto" @wheel="onWheel">
       <!-- Zoomed as a whole (text, spacing and all), so smaller fits more entries. -->
       <ol v-if="visibleEntries.length > 0" :style="{ zoom }">
-        <li
-          v-for="entry in visibleEntries"
-          :key="entry.id"
-          class="border-b border-white/[0.04] border-l-2 transition-colors"
-          :class="[
-            expandedId === entry.id ? 'bg-white/[0.035]' : 'hover:bg-white/[0.02]',
-            TYPE_STYLES[entry.type].border,
-            isNew(entry) && 'entry-new'
-          ]"
-        >
-          <button
-            type="button"
-            class="block w-full text-left px-2.5 py-1.5 outline-none focus-visible:bg-white/[0.04]"
-            :aria-expanded="expandedId === entry.id"
-            @click="expandedId = expandedId === entry.id ? null : entry.id"
+        <template v-for="row in rows" :key="row.key">
+          <!-- "By rule": a header per rule, its entries newest first. -->
+          <li v-if="row.group" class="sticky top-0 z-10 flex items-center gap-2 px-2.5 py-1 border-b border-white/[0.06] bg-[#0d141b]/95 backdrop-blur text-[10.5px]">
+            <span class="font-bold tracking-wider" :class="TYPE_STYLES[row.group.type].text">{{ ACTIVITY_TYPES[row.group.type].short }}</span>
+            <span class="truncate font-semibold text-emerald-300">{{ row.group.name }}</span>
+            <span class="flex-1"></span>
+            <span class="tabular-nums text-emerald-100/40">{{ row.group.count }}</span>
+            <span v-if="row.group.failed" class="tabular-nums text-rose-300/80">{{ row.group.failed }} failed</span>
+          </li>
+          <li
+            v-for="entry in (row.group ? [] : [row.entry])"
+            :key="entry.id"
+            class="border-b border-white/[0.04] border-l-2 transition-colors"
+            :class="[
+              expandedId === entry.id ? 'bg-white/[0.035]' : 'hover:bg-white/[0.02]',
+              TYPE_STYLES[entry.type].border,
+              isNew(entry) && 'entry-new'
+            ]"
           >
-            <!-- time · type · method/resource · status · duration -->
-            <span class="flex items-center gap-2 text-[10.5px] leading-4">
-              <span class="tabular-nums text-emerald-100/35">{{ formatTime(entry.time) }}</span>
-              <span class="font-bold tracking-wider" :class="TYPE_STYLES[entry.type].text">{{ ACTIVITY_TYPES[entry.type].short }}</span>
-              <span class="truncate text-emerald-100/40">{{ [entry.method, entry.resourceType].filter(Boolean).join(' ') }}</span>
-              <span v-if="entry.tabId < 0" class="shrink-0 rounded-sm bg-white/[0.06] px-1 text-[9.5px] font-bold tracking-wider text-emerald-100/50" title="Requested by the site's service worker, not a tab">SW</span>
-              <span class="flex-1"></span>
-              <span v-if="entry.duration !== undefined" class="tabular-nums text-emerald-100/35">{{ formatDuration(entry.duration) }}</span>
-              <span class="font-bold tabular-nums" :class="STATUS_STYLES[statusBucket(entry)]">{{ statusLabel(entry) }}</span>
-            </span>
-            <!-- rule -->
-            <span class="mt-0.5 flex items-center gap-1.5 min-w-0">
-              <span class="text-emerald-400/70 select-none">▸</span>
-              <span class="truncate font-semibold text-emerald-300">{{ entry.ruleName }}</span>
-              <span v-if="portOf(entry)" class="shrink-0 rounded bg-emerald-400/15 px-1 text-[10.5px] font-semibold leading-4 text-emerald-300">:{{ portOf(entry) }}</span>
-            </span>
-            <!-- request -> result -->
-            <span class="mt-0.5 block break-all pl-3.5" :class="expandedId !== entry.id && 'line-clamp-2'">
-              <span class="text-emerald-100/40">{{ splitUrl(entry.url).origin }}</span><span class="text-emerald-50/90">{{ splitUrl(entry.url).rest }}</span>
-            </span>
-            <span v-if="entry.redirectUrl" class="mt-0.5 flex gap-1.5 pl-3.5 min-w-0">
-              <span class="shrink-0 text-cyan-400/80 select-none">→</span>
-              <span class="break-all" :class="[TYPE_STYLES[entry.type].target, expandedId !== entry.id && 'line-clamp-2']">{{ entry.type === 'file' ? 'inline file · ' + entry.redirectUrl.replace(/^data:/, '') : entry.redirectUrl }}</span>
-            </span>
-            <span v-if="entry.headers" class="mt-0.5 block pl-3.5 text-amber-200/80">
-              <span v-for="change in entry.headers.request" :key="'q' + change" class="block truncate"><span class="text-amber-400/60">req </span>{{ change }}</span>
-              <span v-for="change in entry.headers.response" :key="'s' + change" class="block truncate"><span class="text-amber-400/60">res </span>{{ change }}</span>
-            </span>
-            <span v-if="entry.detail" class="mt-0.5 block pl-3.5 text-violet-300/80">{{ entry.detail }}</span>
-            <span v-if="entry.error" class="mt-0.5 flex gap-1.5 pl-3.5 text-rose-300">
-              <span class="shrink-0 select-none">✕</span>
-              <span class="[overflow-wrap:anywhere]">{{ entry.error }}<span v-if="hint(entry)" class="text-rose-200/50"> · {{ hint(entry) }}</span></span>
-            </span>
-          </button>
+            <button
+              type="button"
+              class="block w-full text-left px-2.5 py-1.5 outline-none focus-visible:bg-white/[0.04]"
+              :aria-expanded="expandedId === entry.id"
+              @click="expandedId = expandedId === entry.id ? null : entry.id"
+            >
+              <!-- time · type · method/resource · status · duration -->
+              <span class="flex items-center gap-2 text-[10.5px] leading-4">
+                <span class="tabular-nums text-emerald-100/35">{{ formatTime(entry.time) }}</span>
+                <span class="font-bold tracking-wider" :class="TYPE_STYLES[entry.type].text">{{ ACTIVITY_TYPES[entry.type].short }}</span>
+                <span class="truncate text-emerald-100/40">{{ [entry.method, entry.resourceType].filter(Boolean).join(' ') }}</span>
+                <span v-if="entry.tabId < 0" class="shrink-0 rounded-sm bg-white/[0.06] px-1 text-[9.5px] font-bold tracking-wider text-emerald-100/50" title="Requested by the site's service worker, not a tab">SW</span>
+                <span class="flex-1"></span>
+                <span v-if="entry.duration !== undefined" class="tabular-nums text-emerald-100/35">{{ formatDuration(entry.duration) }}</span>
+                <span class="font-bold tabular-nums" :class="STATUS_STYLES[statusBucket(entry)]">{{ statusLabel(entry) }}</span>
+              </span>
+              <!-- rule -->
+              <span class="mt-0.5 flex items-center gap-1.5 min-w-0">
+                <span class="text-emerald-400/70 select-none">▸</span>
+                <span class="truncate font-semibold text-emerald-300">{{ entry.ruleName }}</span>
+                <span v-if="portOf(entry)" class="shrink-0 rounded bg-emerald-400/15 px-1 text-[10.5px] font-semibold leading-4 text-emerald-300">:{{ portOf(entry) }}</span>
+              </span>
+              <!-- request -> result -->
+              <span class="mt-0.5 block break-all pl-3.5" :class="expandedId !== entry.id && 'line-clamp-2'">
+                <span class="text-emerald-100/40">{{ splitUrl(entry.url).origin }}</span><span class="text-emerald-50/90">{{ splitUrl(entry.url).rest }}</span>
+              </span>
+              <span v-if="entry.redirectUrl" class="mt-0.5 flex gap-1.5 pl-3.5 min-w-0">
+                <span class="shrink-0 text-cyan-400/80 select-none">→</span>
+                <span class="break-all" :class="[TYPE_STYLES[entry.type].target, expandedId !== entry.id && 'line-clamp-2']">{{ entry.type === 'file' ? 'inline file · ' + entry.redirectUrl.replace(/^data:/, '') : entry.redirectUrl }}</span>
+              </span>
+              <span v-if="entry.headers" class="mt-0.5 block pl-3.5 text-amber-200/80">
+                <span v-for="change in entry.headers.request" :key="'q' + change" class="block truncate"><span class="text-amber-400/60">req </span>{{ change }}</span>
+                <span v-for="change in entry.headers.response" :key="'s' + change" class="block truncate"><span class="text-amber-400/60">res </span>{{ change }}</span>
+              </span>
+              <span v-if="entry.detail" class="mt-0.5 block pl-3.5 text-violet-300/80">{{ entry.detail }}</span>
+              <span v-if="entry.error" class="mt-0.5 flex gap-1.5 pl-3.5 text-rose-300">
+                <span class="shrink-0 select-none">✕</span>
+                <span class="[overflow-wrap:anywhere]">{{ entry.error }}<span v-if="hint(entry)" class="text-rose-200/50"> · {{ hint(entry) }}</span></span>
+              </span>
+            </button>
 
-          <!-- Details -->
-          <dl v-if="expandedId === entry.id" class="mx-2.5 mb-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 rounded-md bg-black/40 px-2.5 py-2 text-[11px] ring-1 ring-white/[0.06]">
-            <template v-for="row in detailRows(entry)" :key="row.label">
-              <dt class="text-emerald-100/35">{{ row.label }}</dt>
-              <dd class="flex min-w-0 items-start gap-1.5 text-emerald-50/85">
-                <span class="min-w-0 break-all">{{ row.value }}</span>
+            <!-- Details -->
+            <dl v-if="expandedId === entry.id" class="mx-2.5 mb-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 rounded-md bg-black/40 px-2.5 py-2 text-[11px] ring-1 ring-white/[0.06]">
+              <template v-for="row in detailRows(entry)" :key="row.label">
+                <dt class="text-emerald-100/35">{{ row.label }}</dt>
+                <dd class="flex min-w-0 items-start gap-1.5 text-emerald-50/85">
+                  <span class="min-w-0 break-all">{{ row.value }}</span>
+                  <button
+                    v-if="row.copy"
+                    type="button"
+                    class="shrink-0 mt-[3px] text-emerald-100/30 hover:text-emerald-300"
+                    :title="`Copy ${row.label.toLowerCase()}`"
+                    @click="copy(row.value, row.label)"
+                  >
+                    <UIcon :name="copiedLabel === row.label ? 'i-lucide-check' : 'i-lucide-copy'" class="w-3 h-3 block" />
+                  </button>
+                </dd>
+              </template>
+              <dd class="col-span-2 mt-1.5 flex flex-wrap gap-1.5">
+                <button type="button" :class="actionClass" @click="copy(toCurl(entry), 'curl')">
+                  <UIcon :name="copiedLabel === 'curl' ? 'i-lucide-check' : 'i-lucide-terminal'" class="w-3 h-3" />
+                  Copy as cURL
+                </button>
                 <button
-                  v-if="row.copy"
+                  v-if="entry.redirectUrl && !entry.redirectUrl.startsWith('data:')"
                   type="button"
-                  class="shrink-0 mt-[3px] text-emerald-100/30 hover:text-emerald-300"
-                  :title="`Copy ${row.label.toLowerCase()}`"
-                  @click="copy(row.value, row.label)"
+                  :class="actionClass"
+                  @click="copy(toCurl(entry, true), 'curl-target')"
                 >
-                  <UIcon :name="copiedLabel === row.label ? 'i-lucide-check' : 'i-lucide-copy'" class="w-3 h-3 block" />
+                  <UIcon :name="copiedLabel === 'curl-target' ? 'i-lucide-check' : 'i-lucide-terminal'" class="w-3 h-3" />
+                  cURL of where it went
                 </button>
               </dd>
-            </template>
-          </dl>
-        </li>
+            </dl>
+          </li>
+        </template>
       </ol>
 
       <!-- Empty -->
@@ -235,7 +269,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import { ACTIVITY_TYPES, statusBucket } from '../lib/activity.js';
+import { ACTIVITY_TYPES, statusBucket, toCurl, toHar } from '../lib/activity.js';
 import { getTargetPort } from '../extension/urlPattern.js';
 
 const LOG_KEY = 'activityLog';
@@ -263,6 +297,7 @@ const SCOPE_OPTIONS = [
   { value: 'all', label: 'ALL TABS', title: 'Every tab' }
 ];
 const SORT_OPTIONS = [
+  { value: 'rule', label: 'By rule' },
   { value: 'newest', label: 'Newest' },
   { value: 'oldest', label: 'Oldest' },
   { value: 'slowest', label: 'Slowest' },
@@ -428,6 +463,72 @@ const toggleRecording = () => {
   if (hasChrome) chrome.storage.local.set({ [RECORDING_KEY]: isRecording.value });
 };
 
+const actionClass = 'inline-flex items-center gap-1 h-6 rounded px-2 font-semibold text-emerald-100/70 ring-1 ring-white/[0.1] hover:text-emerald-50 hover:ring-emerald-400/40 transition-colors';
+
+// The list as shown, with a header row per rule when sorted "By rule"; groups follow
+// their most recent activity.
+const rows = computed(() => {
+  if (sort.value !== 'rule') return visibleEntries.value.map(entry => ({ key: entry.id, entry }));
+  const groups = new Map();
+  visibleEntries.value.forEach(entry => {
+    const group = groups.get(entry.ruleId) || { id: entry.ruleId, name: entry.ruleName, type: entry.type, count: 0, failed: 0, entries: [] };
+    group.count++;
+    if (statusBucket(entry) === 'error') group.failed++;
+    group.entries.push(entry);
+    groups.set(entry.ruleId, group);
+  });
+  return [...groups.values()].flatMap(group => [
+    { key: `group-${group.id}`, group },
+    ...group.entries.map(entry => ({ key: entry.id, entry }))
+  ]);
+});
+
+const download = (name, text, type) => {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+const exportName = (extension) => {
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  return `resourced-activity-${stamp}.${extension}`;
+};
+
+// Exports what's shown (filters applied), oldest first.
+const exportEntries = () => [...visibleEntries.value].sort((a, b) => a.time - b.time);
+
+const KEEP_KEY = 'activityKeep';
+const isKept = ref(false);
+
+const moreItems = computed(() => [
+  [
+    { label: 'Export as JSON', icon: 'i-lucide-file-json', onSelect: () => download(exportName('json'), JSON.stringify(exportEntries(), null, 2), 'application/json') },
+    {
+      label: 'Export as HAR',
+      description: 'For DevTools → Network and other HAR viewers',
+      icon: 'i-lucide-file-down',
+      onSelect: () => download(exportName('har'), JSON.stringify(toHar(exportEntries(), hasChrome ? chrome.runtime.getManifest().version : ''), null, 2), 'application/json')
+    }
+  ],
+  [
+    {
+      label: 'Keep after the browser closes',
+      description: 'Otherwise the log starts empty in each browser session',
+      type: 'checkbox',
+      checked: isKept.value,
+      onUpdateChecked: (checked) => {
+        isKept.value = checked;
+        if (hasChrome) chrome.storage.local.set({ [KEEP_KEY]: checked });
+      }
+    }
+  ]
+]);
+
 const clearLog = () => {
   entries.value = [];
   expandedId.value = null;
@@ -479,11 +580,12 @@ onMounted(async () => {
   chrome.tabs.onUpdated.addListener(onTabUpdated);
   const [log, settings] = await Promise.all([
     chrome.storage.session.get(LOG_KEY),
-    chrome.storage.local.get(RECORDING_KEY),
+    chrome.storage.local.get([RECORDING_KEY, KEEP_KEY]),
     refreshCurrentTab()
   ]);
   entries.value = log[LOG_KEY] || [];
   isRecording.value = settings[RECORDING_KEY] !== false;
+  isKept.value = settings[KEEP_KEY] === true;
   shownSince = Date.now();
 });
 

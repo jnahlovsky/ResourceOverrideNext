@@ -15,6 +15,10 @@ const LOG_KEY = 'activityLog';
 const PAGE_STARTS_KEY = 'badgePageStarts';
 // Off while the user has paused recording in the Activity view.
 const RECORDING_KEY = 'activityRecording';
+// "Keep the log after the browser closes": a copy in chrome.storage.local, loaded back when
+// the session's log starts empty.
+const KEEP_KEY = 'activityKeep';
+const KEPT_LOG_KEY = 'activityLogKept';
 const MAX_ENTRIES = 1000;
 const FLUSH_DELAY_MS = 400;
 // Long data: URLs (file overrides) are shortened to their type.
@@ -22,6 +26,7 @@ const MAX_URL_LENGTH = 2048;
 
 let log = [];
 let isRecording = true;
+let isKept = false;
 let compiled = null;
 let sites = getSiteLists({});
 let flushTimer = null;
@@ -35,18 +40,33 @@ const ready = Promise.all([
     log = (result[LOG_KEY] || []).concat(log);
     pageStarts = { ...result[PAGE_STARTS_KEY], ...pageStarts };
   }),
-  chrome.storage.local.get(RECORDING_KEY).then(result => {
+  chrome.storage.local.get([RECORDING_KEY, KEEP_KEY, KEPT_LOG_KEY]).then(result => {
     isRecording = result[RECORDING_KEY] !== false;
+    isKept = result[KEEP_KEY] === true;
+    return result;
   })
-]).catch(() => {});
+]).then(([, settings]) => {
+  // A new browser session: bring the kept log back.
+  if (isKept && log.length === 0 && Array.isArray(settings[KEPT_LOG_KEY])) {
+    log = settings[KEPT_LOG_KEY];
+    chrome.storage.session.set({ [LOG_KEY]: log }).catch(() => {});
+  }
+}).catch(() => {});
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes[RECORDING_KEY]) isRecording = changes[RECORDING_KEY].newValue !== false;
+  if (area !== 'local') return;
+  if (changes[RECORDING_KEY]) isRecording = changes[RECORDING_KEY].newValue !== false;
+  if (changes[KEEP_KEY]) {
+    isKept = changes[KEEP_KEY].newValue === true;
+    if (isKept) chrome.storage.local.set({ [KEPT_LOG_KEY]: log }).catch(() => {});
+    else chrome.storage.local.remove(KEPT_LOG_KEY).catch(() => {});
+  }
 });
 
 const flush = () => {
   flushTimer = null;
   chrome.storage.session.set({ [LOG_KEY]: log }).catch(err => console.warn('Could not save the activity log:', err));
+  if (isKept) chrome.storage.local.set({ [KEPT_LOG_KEY]: log }).catch(err => console.warn('Could not keep the activity log:', err));
 };
 
 const scheduleFlush = () => {

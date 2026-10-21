@@ -92,3 +92,63 @@ export function statusBucket(entry) {
   if (entry.status >= 400) return 'error';
   return 'ok';
 }
+
+const shellQuote = (value) => `'${String(value).replace(/'/g, `'\\''`)}'`;
+
+/**
+ * A curl command for an entry's request: the original URL, or with `target` the URL it was
+ * sent to instead (redirects, query rewrites). Header rules add the headers they set.
+ */
+export function toCurl(entry, target = false) {
+  const url = target && entry.redirectUrl && !entry.redirectUrl.startsWith('data:') ? entry.redirectUrl : entry.url;
+  const parts = ['curl'];
+  if (entry.method && entry.method !== 'GET') parts.push('-X', entry.method);
+  (entry.headers?.request || [])
+    .filter(change => change.startsWith('set ') || change.startsWith('append '))
+    .forEach(change => parts.push('-H', shellQuote(change.replace(/^(set|append) /, ''))));
+  parts.push(shellQuote(url));
+  return parts.join(' ');
+}
+
+/**
+ * The entries as a HAR 1.2 log, for DevTools and other HAR viewers. Only what the activity
+ * log knows: URLs, method, status, timing; the comment says which rule did what.
+ */
+export function toHar(entries, version = '') {
+  return {
+    log: {
+      version: '1.2',
+      creator: { name: 'Resourced', version },
+      entries: entries.map(entry => ({
+        startedDateTime: new Date(entry.time).toISOString(),
+        time: entry.duration || 0,
+        request: {
+          method: entry.method || 'GET',
+          url: entry.url,
+          httpVersion: '',
+          headers: [],
+          queryString: [],
+          cookies: [],
+          headersSize: -1,
+          bodySize: -1
+        },
+        response: {
+          status: typeof entry.status === 'number' ? entry.status : 0,
+          statusText: entry.error || '',
+          httpVersion: '',
+          headers: [],
+          cookies: [],
+          content: { size: -1, mimeType: '' },
+          redirectURL: entry.redirectUrl && !entry.redirectUrl.startsWith('data:') ? entry.redirectUrl : '',
+          headersSize: -1,
+          bodySize: -1
+        },
+        cache: {},
+        timings: { send: 0, wait: entry.duration || 0, receive: 0 },
+        _resourcedType: entry.type,
+        _resourcedRule: entry.ruleName,
+        comment: `${ACTIVITY_TYPES[entry.type]?.label || entry.type} by rule "${entry.ruleName}"${entry.error ? `; failed: ${entry.error}` : ''}`
+      }))
+    }
+  };
+}
