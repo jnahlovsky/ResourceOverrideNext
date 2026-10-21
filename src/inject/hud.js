@@ -27,7 +27,10 @@
         hudShowSwitches: true,
         hudPortMode: "edit", // "edit" | "show" | "hide"
         // Comma-separated domains the HUD is limited to; empty = every site.
-        hudSites: ""
+        hudSites: "",
+        // Settings → Sites: where the extension works at all.
+        siteAllowlist: "",
+        siteBlocklist: ""
     };
     // Distance kept from the viewport edges; also the default distance from the top.
     var EDGE_GAP = 10;
@@ -106,7 +109,39 @@
         ".item:hover .add-port, .add-port:focus-visible { opacity: 1; }",
         "button.add-port:hover { background: rgba(255, 255, 255, 0.1); }",
         "input.port { width: 7ch; border: 0; outline: 0; margin: 0; background: #f8fafc; color: #0f172a;",
-        "  user-select: text; -webkit-user-select: text; }"
+        "  user-select: text; -webkit-user-select: text; }",
+        ".counts { display: inline-flex; align-items: center; gap: 5px; cursor: help; border-radius: 4px; padding: 0 2px; margin: 0 -2px; }",
+        ".counts:hover, .counts.is-open { background: rgba(255, 255, 255, 0.12); }",
+        // The log of one redirect, opened by hovering its count; terminal style like the
+        // side panel's activity log (src/sidepanel/ActivityLog.vue).
+        ".log { position: fixed; inset: auto; margin: 0; border: 0; padding: 0; overflow: hidden; z-index: 2147483647;",
+        "  display: flex; flex-direction: column; box-sizing: border-box; border-radius: 12px; background: #0a0f14; color: #c8f5d4;",
+        "  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.09);",
+        "  font: 500 11.5px/17px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; user-select: text; -webkit-user-select: text; }",
+        ".log-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #0d141b;",
+        "  border-bottom: 1px solid rgba(255, 255, 255, 0.06); }",
+        ".log-title { font-weight: 700; color: #6ee7b7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }",
+        ".log-port { flex: none; padding: 0 5px; border-radius: 5px; background: rgba(52, 211, 153, 0.15); color: #6ee7b7; font-weight: 600; }",
+        ".log-sum { margin-left: auto; flex: none; color: rgba(200, 245, 212, 0.45); font-size: 10.5px; }",
+        ".log-sum b { color: #fda4af; font-weight: 600; }",
+        ".log-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(200, 245, 212, 0.15) transparent; }",
+        ".log-row { padding: 6px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); border-left: 2px solid rgba(52, 211, 153, 0.55); }",
+        ".log-row.failed { border-left-color: rgba(251, 113, 133, 0.7); background: rgba(251, 113, 133, 0.04); }",
+        ".log-meta { display: flex; align-items: center; gap: 8px; font-size: 10.5px; line-height: 16px; color: rgba(200, 245, 212, 0.4); }",
+        ".log-meta .grow { flex: 1; }",
+        ".log-sw { padding: 0 4px; border-radius: 3px; background: rgba(255, 255, 255, 0.06); font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; }",
+        ".log-status { font-weight: 700; color: #34d399; }",
+        ".log-status.err { color: #fb7185; }",
+        ".log-status.pending { color: #fcd34d; }",
+        ".log-url, .log-target, .log-error { margin-top: 1px; word-break: break-all; }",
+        ".log-url { color: rgba(236, 253, 245, 0.9); }",
+        ".log-url .dim { color: rgba(200, 245, 212, 0.4); }",
+        ".log-target { color: #67e8f9; }",
+        ".log-target::before { content: '→ '; color: rgba(103, 232, 249, 0.7); }",
+        ".log-error { color: #fda4af; overflow-wrap: anywhere; word-break: normal; }",
+        ".log-error .hint { color: rgba(253, 164, 175, 0.55); }",
+        ".log-empty { padding: 14px 12px; color: rgba(200, 245, 212, 0.45); }",
+        ".log-empty::before { content: '$ '; color: #34d399; }"
     ].join("\n");
 
     // Lucide "move" icon (ISC licence).
@@ -157,6 +192,7 @@
             style[p.h] = x + "px";
         }
         style[p.v] = y + "px";
+        positionLog();
     };
 
     // Converts where the HUD was dropped into an edge-anchored position.
@@ -199,6 +235,7 @@
 
     var onDragStart = function(e) {
         if (e.button !== 0 || drag) return;
+        if (logRuleId !== null) closeLog();
         e.preventDefault();
         var rect = hud.getBoundingClientRect();
         drag = {
@@ -253,6 +290,213 @@
     var onKeyDown = function(e) {
         if (e.key === "Escape" && drag) {
             onDragCancel({ pointerId: drag.pointerId });
+        } else if (e.key === "Escape" && logRuleId !== null) {
+            closeLog();
+        }
+    };
+
+    /*
+     * Hovering a redirect's count opens its requests on this page, newest first, from the
+     * activity log (src/extension/activityLog.js). It stays open while the pointer is on
+     * the count or the log, and follows new requests.
+     */
+    var logPanel = null;
+    var logRuleId = null;
+    var logEntries = null; // null while loading
+    var logCloseTimer = null;
+    var logFetchTimer = null;
+    var LOG_CLOSE_DELAY = 250;
+    var LOG_GAP = 6;
+
+    var el = function(tag, className, text) {
+        var node = document.createElement(tag);
+        if (className) node.className = className;
+        // Always text: URLs come from the page's requests.
+        if (text !== undefined) node.textContent = text;
+        return node;
+    };
+
+    var pad = function(n, width) {
+        return String(n).padStart(width || 2, "0");
+    };
+
+    var formatTime = function(time) {
+        var d = new Date(time);
+        return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()) + "." + pad(d.getMilliseconds(), 3);
+    };
+
+    var formatDuration = function(ms) {
+        return ms >= 1000 ? (ms / 1000).toFixed(1) + "s" : ms + "ms";
+    };
+
+    var logAnchor = function() {
+        return logRuleId === null || !list ? null : list.querySelector('.counts[data-rule-id="' + CSS.escape(String(logRuleId)) + '"]');
+    };
+
+    var positionLog = function() {
+        if (!logPanel || logRuleId === null) return;
+        var vp = viewport();
+        var hudRect = hud.getBoundingClientRect();
+        var anchor = logAnchor();
+        var anchorRect = anchor ? anchor.getBoundingClientRect() : hudRect;
+        var width = Math.min(640, vp.width - EDGE_GAP * 2);
+        var style = logPanel.style;
+        style.width = width + "px";
+        style.left = clamp(anchorRect.left - 16, EDGE_GAP, vp.width - width - EDGE_GAP) + "px";
+        // Below the HUD in the top half of the window, above it in the bottom half.
+        if (hudRect.top + hudRect.height / 2 < vp.height / 2) {
+            style.top = hudRect.bottom + LOG_GAP + "px";
+            style.bottom = "auto";
+            style.maxHeight = Math.max(vp.height - hudRect.bottom - LOG_GAP - EDGE_GAP, 120) + "px";
+        } else {
+            style.top = "auto";
+            style.bottom = vp.height - hudRect.top + LOG_GAP + "px";
+            style.maxHeight = Math.max(hudRect.top - LOG_GAP - EDGE_GAP, 120) + "px";
+        }
+        style.height = "auto";
+    };
+
+    var hintFor = function(entry) {
+        if (/CONNECTION_REFUSED|ADDRESS_UNREACHABLE/.test(entry.error || "")) return "is the local server running?";
+        if (/BLOCKED_BY_CLIENT/.test(entry.error || "")) return "blocked by another extension";
+        // A fetch/XHR redirected to another origin fails without CORS headers on the local server.
+        if (entry.error === "net::ERR_FAILED" && entry.resourceType === "xmlhttprequest") return "CORS? the local server must allow this site";
+        return "";
+    };
+
+    var renderLogRow = function(entry) {
+        var failed = !!entry.error || entry.status >= 400;
+        var row = el("div", "log-row" + (failed ? " failed" : ""));
+        var meta = el("div", "log-meta");
+        meta.appendChild(el("span", "", formatTime(entry.time)));
+        meta.appendChild(el("span", "", [entry.method, entry.resourceType].filter(Boolean).join(" ")));
+        if (entry.tabId < 0) {
+            var sw = el("span", "log-sw", "SW");
+            sw.title = "Requested by the site's service worker";
+            meta.appendChild(sw);
+        }
+        meta.appendChild(el("span", "grow"));
+        if (entry.duration !== undefined) meta.appendChild(el("span", "", formatDuration(entry.duration)));
+        var pending = !entry.error && (entry.status === undefined || entry.status === null);
+        var label = entry.error ? "ERR" : pending ? "···" : String(entry.status) + (entry.fromCache ? "·c" : "");
+        meta.appendChild(el("span", "log-status" + (failed ? " err" : pending ? " pending" : ""), label));
+        row.appendChild(meta);
+
+        var url = el("div", "log-url");
+        var m = /^([a-z][a-z0-9+.-]*:\/\/[^\/?#]*)(.*)$/i.exec(entry.url || "");
+        url.appendChild(el("span", "dim", m ? m[1] : ""));
+        url.appendChild(document.createTextNode(m ? m[2] : entry.url || ""));
+        row.appendChild(url);
+        if (entry.redirectUrl) row.appendChild(el("div", "log-target", entry.redirectUrl));
+        if (entry.error) {
+            var error = el("div", "log-error", "✕ " + entry.error);
+            var hint = hintFor(entry);
+            if (hint) error.appendChild(el("span", "hint", " · " + hint));
+            row.appendChild(error);
+        }
+        return row;
+    };
+
+    var renderLog = function() {
+        if (!logPanel || logRuleId === null) return;
+        var redirect = (state.hudRedirects || []).filter(function(r) { return r.id === logRuleId; })[0];
+        logPanel.textContent = "";
+
+        var head = el("div", "log-head");
+        head.appendChild(el("span", "log-title", redirect ? redirect.name : "Redirect"));
+        if (redirect && redirect.port) head.appendChild(el("span", "log-port", ":" + redirect.port));
+        var sum = el("span", "log-sum");
+        if (logEntries) {
+            var failedCount = logEntries.filter(function(e) { return !!e.error || e.status >= 400; }).length;
+            sum.textContent = logEntries.length + " request" + (logEntries.length === 1 ? "" : "s") + " on this page";
+            if (failedCount) {
+                sum.appendChild(document.createTextNode(" · "));
+                sum.appendChild(el("b", "", failedCount + " failed"));
+            }
+        }
+        head.appendChild(sum);
+        logPanel.appendChild(head);
+
+        var body = el("div", "log-body");
+        if (!logEntries) {
+            body.appendChild(el("div", "log-empty", "loading…"));
+        } else if (logEntries.length === 0) {
+            body.appendChild(el("div", "log-empty", "no requests on this page yet"));
+        } else {
+            logEntries.slice().reverse().forEach(function(entry) {
+                body.appendChild(renderLogRow(entry));
+            });
+        }
+        logPanel.appendChild(body);
+        positionLog();
+    };
+
+    var fetchLog = function() {
+        var ruleId = logRuleId;
+        chrome.runtime.sendMessage({ action: "hudGetRuleActivity", ruleId: ruleId, since: pageStart - 1 }).then(function(entries) {
+            if (logRuleId !== ruleId) return;
+            logEntries = entries || [];
+            renderLog();
+        }).catch(function() {});
+    };
+
+    // Requests can arrive in bursts; refresh the open log a few times a second at most.
+    var refreshLogSoon = function() {
+        if (logFetchTimer) return;
+        logFetchTimer = setTimeout(function() {
+            logFetchTimer = null;
+            if (logRuleId !== null) fetchLog();
+        }, 300);
+    };
+
+    var markAnchor = function() {
+        if (!list) return;
+        Array.prototype.forEach.call(list.querySelectorAll(".counts.is-open"), function(node) {
+            node.classList.remove("is-open");
+        });
+        var anchor = logAnchor();
+        if (anchor) anchor.classList.add("is-open");
+    };
+
+    var openLog = function(redirect) {
+        clearTimeout(logCloseTimer);
+        if (logRuleId === redirect.id) return;
+        logRuleId = redirect.id;
+        logEntries = null;
+        logPanel.style.display = "flex";
+        if (supportsPopover && !logPanel.matches(":popover-open")) logPanel.showPopover();
+        renderLog();
+        markAnchor();
+        fetchLog();
+        document.addEventListener("pointermove", onLogPointerMove, { capture: true, passive: true });
+    };
+
+    var closeLog = function() {
+        clearTimeout(logCloseTimer);
+        logRuleId = null;
+        logEntries = null;
+        markAnchor();
+        document.removeEventListener("pointermove", onLogPointerMove, true);
+        if (!logPanel) return;
+        if (supportsPopover && logPanel.matches(":popover-open")) logPanel.hidePopover();
+        logPanel.style.display = "none";
+    };
+
+    var isInside = function(rect, x, y, margin) {
+        return x >= rect.left - margin && x <= rect.right + margin && y >= rect.top - margin && y <= rect.bottom + margin;
+    };
+
+    // Checked by position: the HUD re-renders its items as requests come in, so the count
+    // under the pointer may be a new element that never saw the pointer enter.
+    var onLogPointerMove = function(e) {
+        var anchor = logAnchor();
+        var overAnchor = anchor && isInside(anchor.getBoundingClientRect(), e.clientX, e.clientY, 4);
+        var overLog = isInside(logPanel.getBoundingClientRect(), e.clientX, e.clientY, LOG_GAP);
+        if (overAnchor || overLog) {
+            clearTimeout(logCloseTimer);
+            logCloseTimer = null;
+        } else if (!logCloseTimer) {
+            logCloseTimer = setTimeout(closeLog, LOG_CLOSE_DELAY);
         }
     };
 
@@ -293,21 +537,63 @@
         list.className = "list";
         content.appendChild(list);
 
+        logPanel = document.createElement("div");
+        logPanel.className = "log";
+        logPanel.style.display = "none";
+        logPanel.setAttribute("role", "dialog");
+        logPanel.setAttribute("aria-label", "Requests of this redirect on the page");
+        if (supportsPopover) logPanel.setAttribute("popover", "manual");
+
         // Clicks and typing in the HUD are the HUD's own; the page shouldn't react to them
         // (shortcuts, "click outside" handlers). Its capture listeners still see them.
         ["click", "pointerdown", "mousedown", "keydown", "keyup", "keypress"].forEach(function(type) {
-            hud.addEventListener(type, function(e) {
-                e.stopPropagation();
+            [hud, logPanel].forEach(function(node) {
+                node.addEventListener(type, function(e) {
+                    e.stopPropagation();
+                });
             });
         });
 
         hud.appendChild(handle);
         hud.appendChild(content);
+
         shadow.appendChild(style);
         shadow.appendChild(hud);
+        shadow.appendChild(logPanel);
 
         document.addEventListener("keydown", onKeyDown, true);
         window.addEventListener("resize", applyPosition);
+    };
+
+    // Settings → Sites; same as getSiteLists / siteIsEnabled in src/extension/urlPattern.js.
+    var parseSites = function(value) {
+        return String(value || "").split(/[\s,;]+/).map(function(entry) {
+            return entry.trim().toLowerCase()
+                .replace(/^[a-z][a-z0-9+.-]*:\/\//, "")
+                .replace(/[\/?#].*$/, "")
+                .replace(/:\d+$/, "")
+                .replace(/\.$/, "");
+        }).filter(Boolean);
+    };
+
+    var siteMatchesHost = function(pattern, host) {
+        var domain = pattern.replace(/^\*\./, "");
+        if (domain.indexOf("*") === -1) return host === domain || host.endsWith("." + domain);
+        var regex = "^" + pattern.replace(/[.+?^${}()|[\]\\\/]/g, "\\$&").replace(/\*/g, "[^/?#@:]*") + "$";
+        return new RegExp(regex).test(host);
+    };
+
+    var siteIsEnabled = function(allowList, blockList, host) {
+        host = String(host || "").toLowerCase();
+        // Only plain domains can limit the network rules, so only those count here too.
+        var allow = parseSites(allowList).filter(function(pattern) {
+            return pattern.replace(/^\*\./, "").indexOf("*") === -1;
+        });
+        var matches = function(pattern) {
+            return siteMatchesHost(pattern, host);
+        };
+        if (parseSites(blockList).some(matches)) return false;
+        return allow.length === 0 || allow.some(matches);
     };
 
     // Same parsing as the rules' domain filters (parseDomainList in urlPattern.js).
@@ -353,7 +639,8 @@
 
     var shouldShow = function() {
         var redirects = Array.isArray(state.hudRedirects) ? state.hudRedirects : [];
-        return state.hudEnabled && siteAllowed() && visibleRedirects().length > 0 &&
+        return state.hudEnabled && siteAllowed() && siteIsEnabled(state.siteAllowlist, state.siteBlocklist, location.hostname) &&
+            visibleRedirects().length > 0 &&
             (keepVisible || redirects.some(function(redirect) { return redirect.on; }));
     };
 
@@ -451,16 +738,25 @@
         }
 
         if (state.hudShowCounts && counts.total > 0) {
+            var countsEl = document.createElement("span");
+            countsEl.className = "counts" + (logRuleId === redirect.id ? " is-open" : "");
+            countsEl.setAttribute("data-rule-id", String(redirect.id));
+            // No item tooltip over the log it opens.
+            countsEl.title = "";
             var count = document.createElement("span");
             count.className = "count";
             count.textContent = "×" + counts.total;
-            item.appendChild(count);
+            countsEl.appendChild(count);
             if (counts.failed > 0) {
                 var failed = document.createElement("span");
                 failed.className = "count failed";
                 failed.textContent = "✕" + counts.failed;
-                item.appendChild(failed);
+                countsEl.appendChild(failed);
             }
+            countsEl.addEventListener("mouseenter", function() {
+                openLog(redirect);
+            });
+            item.appendChild(countsEl);
         }
         return item;
     };
@@ -489,6 +785,7 @@
         // Finishing the edit renders whatever changed meanwhile.
         if (editingId !== null) return;
         if (!shouldShow()) {
+            if (logRuleId !== null) closeLog();
             if (host) host.remove();
             return;
         }
@@ -509,6 +806,11 @@
         attach();
         // Measured after the content changed, so a wider pill still fits on screen.
         if (!drag) applyPosition();
+        // The count it hangs from was re-created and may have moved.
+        if (logRuleId !== null) {
+            if (logAnchor()) positionLog();
+            else closeLog();
+        }
     };
 
     // Some apps (e.g. React hydrating the whole document) drop nodes they didn't render;
@@ -526,6 +828,7 @@
         observer.disconnect();
         document.removeEventListener(REPLACE_EVENT, destroy);
         document.removeEventListener("keydown", onKeyDown, true);
+        document.removeEventListener("pointermove", onLogPointerMove, true);
         window.removeEventListener("resize", applyPosition);
         if (host) host.remove();
     };
@@ -553,6 +856,7 @@
         if (msg && msg.action === "hudActivity" && !isDestroyed) {
             addActivity(msg.entry);
             scheduleRender();
+            if (msg.entry && msg.entry.ruleId === logRuleId) refreshLogSoon();
         }
     });
 

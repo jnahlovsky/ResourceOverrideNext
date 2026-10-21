@@ -24,6 +24,37 @@
         return include.length === 0 || include.some(matches);
     };
 
+    // Settings → Sites; same as getSiteLists / siteIsEnabled in src/extension/urlPattern.js.
+    var parseSites = function(value) {
+        return String(value || "").split(/[\s,;]+/).map(function(entry) {
+            return entry.trim().toLowerCase()
+                .replace(/^[a-z][a-z0-9+.-]*:\/\//, "")
+                .replace(/[\/?#].*$/, "")
+                .replace(/:\d+$/, "")
+                .replace(/\.$/, "");
+        }).filter(Boolean);
+    };
+
+    var siteMatchesHost = function(pattern, host) {
+        var domain = pattern.replace(/^\*\./, "");
+        if (domain.indexOf("*") === -1) return host === domain || host.endsWith("." + domain);
+        var regex = "^" + pattern.replace(/[.+?^${}()|[\]\\\/]/g, "\\$&").replace(/\*/g, "[^/?#@:]*") + "$";
+        return new RegExp(regex).test(host);
+    };
+
+    var siteIsEnabled = function(allowList, blockList, host) {
+        host = String(host || "").toLowerCase();
+        // Only plain domains can limit the network rules, so only those count here too.
+        var allow = parseSites(allowList).filter(function(pattern) {
+            return pattern.replace(/^\*\./, "").indexOf("*") === -1;
+        });
+        var matches = function(pattern) {
+            return siteMatchesHost(pattern, host);
+        };
+        if (parseSites(blockList).some(matches)) return false;
+        return allow.length === 0 || allow.some(matches);
+    };
+
     var fileTypeToTag = {
         js: "script",
         css: "style"
@@ -78,21 +109,27 @@
         });
     };
 
-    chrome.runtime.sendMessage({action: "getDomains"}, function(domains) {
-        domains = domains || [];
-        domains.forEach(function(domain) {
-            if (domain.on) {
-                chrome.runtime.sendMessage({
-                    action: "match",
-                    domainUrl: domain.matchUrl,
-                    windowUrl: location.href
-                }, function(result) {
-                    if (result) {
-                        processDomain(domain);
-                    }
-                });
-            }
+    var injectRules = function() {
+        chrome.runtime.sendMessage({action: "getDomains"}, function(domains) {
+            domains = domains || [];
+            domains.forEach(function(domain) {
+                if (domain.on) {
+                    chrome.runtime.sendMessage({
+                        action: "match",
+                        domainUrl: domain.matchUrl,
+                        windowUrl: location.href
+                    }, function(result) {
+                        if (result) {
+                            processDomain(domain);
+                        }
+                    });
+                }
+            });
         });
+    };
+
+    chrome.storage.local.get(["siteAllowlist", "siteBlocklist"], function(settings) {
+        if (siteIsEnabled(settings.siteAllowlist, settings.siteBlocklist, location.hostname)) injectRules();
     });
 
     chrome.runtime.onMessage.addListener(function(msg) {

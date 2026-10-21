@@ -337,3 +337,107 @@ export function applyDomainFilters(condition, rule) {
     if (exclude.length > 0) condition.excludedRequestDomains = exclude;
     return condition;
 }
+
+/*
+ * Global site lists (Settings → Sites): where the rules apply at all. A site is the page
+ * a request belongs to, i.e. the request's initiator, or the URL itself for a page load.
+ * Entries are host patterns: "example.com" and "*.example.com" both mean the domain and
+ * its subdomains (like Chrome's domain lists); a "*" elsewhere matches any characters,
+ * e.g. "prod-*.example.com".
+ */
+export function parseSiteList(value) {
+    if (!value) return [];
+    const seen = new Set();
+    return String(value)
+        .split(/[\s,;]+/)
+        .map(entry => entry.trim().toLowerCase()
+            .replace(/^[a-z][a-z0-9+.-]*:\/\//, "")
+            .replace(/[\/?#].*$/, "")
+            .replace(/:\d+$/, "")
+            .replace(/\.$/, ""))
+        .filter(entry => entry && !seen.has(entry) && seen.add(entry))
+        .map(entry => {
+            const domain = entry.replace(/^\*\./, "");
+            return domain.includes("*") ? { pattern: entry } : { pattern: entry, domain };
+        });
+}
+
+// Only domains can limit Chrome's rules to some sites (initiatorDomains); see buildSiteVariants.
+export function isAllowlistSupported(site) {
+    return !!site.domain;
+}
+
+const siteHostRegex = (site) => (site.domain
+    ? "(?:[^\\/?#@:]*\\.)?" + escapeRegex(site.domain)
+    : escapeRegex(site.pattern).replace(/\\\*/g, "[^\\/?#@:]*"));
+
+export function siteMatchesHost(site, host) {
+    host = (host || "").toLowerCase();
+    if (site.domain) return hostMatchesDomain(host, site.domain);
+    return new RegExp("^" + siteHostRegex(site) + "$").test(host);
+}
+
+/** Whether the rules apply on a page with this host. The blocklist wins. */
+export function siteIsEnabled(sites, host) {
+    if (!host) return sites.allow.length === 0;
+    if (sites.block.some(site => siteMatchesHost(site, host))) return false;
+    return sites.allow.length === 0 || sites.allow.some(site => siteMatchesHost(site, host));
+}
+
+// Allowlist entries Chrome can't apply are left out everywhere, so the injections and the
+// HUD follow the same lists as the network rules; Settings points them out.
+export function getSiteLists(settings) {
+    return {
+        allow: parseSiteList(settings?.siteAllowlist).filter(isAllowlistSupported),
+        block: parseSiteList(settings?.siteBlocklist)
+    };
+}
+
+/**
+ * DNR rules for the blocklist: pages on these sites, and everything they load, are
+ * "allowed" above the extension's own rules (priority), so none of those apply there.
+ * Works with any wildcard, because it matches the page URL with a regex.
+ */
+export function buildSiteBlockConditions(sites) {
+    return sites.block.map(site => ({
+        regexFilter: "^[a-z][a-z0-9+.-]*:\\/\\/(?:[^\\/?#@]*@)?" + siteHostRegex(site) + "(?::\\d+)?(?:[\\/?#]|$)",
+        resourceTypes: ["main_frame", "sub_frame"]
+    }));
+}
+
+// Domains in both lists, keeping the narrower of each overlapping pair.
+const intersectDomains = (a, b) => [...new Set([
+    ...a.filter(x => b.some(y => hostMatchesDomain(x, y))),
+    ...b.filter(y => a.some(x => hostMatchesDomain(y, x)))
+])];
+
+/**
+ * Splits a rule's DNR condition by where the site comes from: page loads (main_frame) are
+ * matched on their own URL, everything else on the page that made the request.
+ * Returns the conditions to register; an empty list when the rule can't apply anywhere.
+ * The blocklist's domains are also excluded here, for requests that come from no frame
+ * (e.g. a site's service worker), which the blocklist's page rules don't cover.
+ */
+export function buildSiteVariants(condition, sites) {
+    const allow = sites.allow.map(site => site.domain);
+    const blockDomains = sites.block.filter(site => site.domain).map(site => site.domain);
+    if (allow.length === 0 && blockDomains.length === 0) return [condition];
+
+    const types = condition.resourceTypes || [];
+    const variants = [];
+    if (types.includes("main_frame")) {
+        const page = { ...condition, resourceTypes: ["main_frame"] };
+        if (allow.length > 0) {
+            page.requestDomains = condition.requestDomains ? intersectDomains(condition.requestDomains, allow) : allow;
+        }
+        if (!page.requestDomains || page.requestDomains.length > 0) variants.push(page);
+    }
+    const others = types.filter(type => type !== "main_frame");
+    if (others.length > 0) {
+        const rest = { ...condition, resourceTypes: others };
+        if (allow.length > 0) rest.initiatorDomains = allow;
+        if (blockDomains.length > 0) rest.excludedInitiatorDomains = blockDomains;
+        variants.push(rest);
+    }
+    return variants;
+}

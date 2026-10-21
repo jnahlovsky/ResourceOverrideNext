@@ -1,5 +1,5 @@
 /* global bgapp, chrome */
-import { buildUrlMatch, applyDomainFilters, getTargetPort, getTargetHost } from './urlPattern.js';
+import { buildUrlMatch, applyDomainFilters, getTargetPort, getTargetHost, getSiteLists, buildSiteBlockConditions, buildSiteVariants } from './urlPattern.js';
 import { canEditRulePort } from '../lib/ruleLabels.js';
 import { setActivityRules } from './activityLog.js';
 
@@ -81,15 +81,17 @@ const describeRejection = (err) => {
 };
 
 // Chrome rejects the whole update when any one rule is invalid, which would leave every
-// rule unregistered. In that case they are added one at a time, so only the bad ones are
-// left out. Returns the rules that were registered and the errors by rule id.
+// rule unregistered. In that case they are added one entry at a time (a rule can take
+// more than one DNR rule), so only the bad ones are left out.
+// Returns the entries that were registered and the errors by entry key.
 const registerRules = async (entries) => {
+    let nextId = 1;
+    entries.forEach(entry => entry.dnrRules.forEach(dnrRule => { dnrRule.id = nextId++; }));
     const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
     const removeRuleIds = existingRules.map(r => r.id);
-    const addRules = entries.map(entry => entry.dnrRule);
     try {
-        await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds, addRules });
-        return { registered: entries.map(entry => entry.ruleObj), errors: {} };
+        await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds, addRules: entries.flatMap(entry => entry.dnrRules) });
+        return { registered: entries, errors: {} };
     } catch (batchError) {
         console.warn("Some rules were rejected, adding them one by one:", batchError);
     }
@@ -97,17 +99,29 @@ const registerRules = async (entries) => {
     await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds });
     const registered = [];
     const errors = {};
-    for (const { ruleObj, dnrRule } of entries) {
+    for (const entry of entries) {
         try {
-            await chrome.declarativeNetRequest.updateDynamicRules({ addRules: [dnrRule] });
-            registered.push(ruleObj);
+            await chrome.declarativeNetRequest.updateDynamicRules({ addRules: entry.dnrRules });
+            registered.push(entry);
         } catch (err) {
-            errors[ruleObj.id] = describeRejection(err);
-            console.warn("Rule rejected by Chrome:", ruleObj, err);
+            errors[entry.key] = describeRejection(err);
+            console.warn("Rule rejected by Chrome:", entry, err);
         }
     }
     return { registered, errors };
 };
+
+const regexError = async (regex) => {
+    const support = await chrome.declarativeNetRequest.isRegexSupported({ regex });
+    if (support.isSupported) return "";
+    console.warn(`Skipping unsupported regex (${support.reason}):`, regex);
+    return support.reason === "memoryLimitExceeded"
+        ? "The pattern is too complex for Chrome."
+        : "Chrome can't use this regular expression (RE2 syntax, no lookarounds or backreferences).";
+};
+
+// Above every rule of the extension, so the blocklist's pages are left alone.
+const SITE_BLOCK_PRIORITY = 1000;
 
 export async function updateDNRRules() {
     if (!globalThis.bgapp || !globalThis.bgapp.mainStorage) {
@@ -119,10 +133,28 @@ export async function updateDNRRules() {
         const domains = await globalThis.bgapp.mainStorage.getAll();
         const entries = [];
         const skippedErrors = {};
+        const siteErrors = {};
 
         const isExtensionOn = globalThis.bgapp.getSetting("isExtensionOn") !== "false";
+        // Settings → Sites: where the rules apply at all.
+        const sites = getSiteLists(await chrome.storage.local.get(["siteAllowlist", "siteBlocklist"]));
 
         if (isExtensionOn) {
+            const blockConditions = buildSiteBlockConditions(sites);
+            for (const [index, condition] of blockConditions.entries()) {
+                const pattern = sites.block[index].pattern;
+                const error = await regexError(condition.regexFilter);
+                if (error) {
+                    siteErrors[pattern] = error;
+                    continue;
+                }
+                entries.push({
+                    key: "site:" + pattern,
+                    site: pattern,
+                    dnrRules: [{ priority: SITE_BLOCK_PRIORITY, action: { type: "allowAllRequests" }, condition }]
+                });
+            }
+
             for (const domainObj of domains) {
                 if (!domainObj.on) continue;
 
@@ -136,27 +168,23 @@ export async function updateDNRRules() {
                     if (!action) continue;
 
                     const regex = urlMatch.condition.regexFilter;
-                    if (regex) {
-                        const support = await chrome.declarativeNetRequest.isRegexSupported({ regex });
-                        if (!support.isSupported) {
-                            console.warn(`Skipping rule with unsupported regex (${support.reason}):`, regex);
-                            skippedErrors[ruleObj.id] = support.reason === "memoryLimitExceeded"
-                                ? "The pattern is too complex for Chrome."
-                                : "Chrome can't use this regular expression (RE2 syntax, no lookarounds or backreferences).";
-                            continue;
-                        }
+                    const error = regex ? await regexError(regex) : "";
+                    if (error) {
+                        skippedErrors[ruleObj.id] = error;
+                        continue;
                     }
 
                     const condition = applyDomainFilters({ ...urlMatch.condition, resourceTypes: RESOURCE_TYPES }, ruleObj);
+                    const conditions = buildSiteVariants(condition, sites);
+                    if (conditions.length === 0) {
+                        skippedErrors[ruleObj.id] = "None of this rule's domains are among the allowed sites (Settings → Sites).";
+                        continue;
+                    }
 
                     entries.push({
+                        key: ruleObj.id,
                         ruleObj,
-                        dnrRule: {
-                            id: entries.length + 1,
-                            priority: 100,
-                            action: action,
-                            condition: condition
-                        }
+                        dnrRules: conditions.map(variant => ({ priority: 100, action: action, condition: variant }))
                     });
                 }
             }
@@ -164,17 +192,23 @@ export async function updateDNRRules() {
 
         const { registered, errors } = await registerRules(entries);
 
-        // Shown on the rule cards and in the popup / side panel (useRuleErrors).
-        const ruleErrors = { ...skippedErrors, ...errors };
-        await chrome.storage.local.set({ ruleErrors });
+        // Shown on the rule cards and in the popup / side panel (useRuleErrors), and for the
+        // site lists in Settings.
+        const ruleErrors = { ...skippedErrors };
+        Object.keys(errors).forEach(key => {
+            const entry = entries.find(e => String(e.key) === String(key));
+            if (entry?.site) siteErrors[entry.site] = errors[key];
+            else ruleErrors[key] = errors[key];
+        });
+        await chrome.storage.local.set({ ruleErrors, siteErrors });
         // The activity log attributes requests to the rules that are actually in effect.
         setActivityRules(!isExtensionOn ? [] : domains
             .filter(domainObj => domainObj.on)
             .flatMap(domainObj => domainObj.rules || [])
-            .filter(rule => rule.on && !ruleErrors[rule.id]));
+            .filter(rule => rule.on && !ruleErrors[rule.id]), sites);
         await publishHudRedirects(domains, isExtensionOn, ruleErrors);
 
-        console.log(`DNR rules updated. Added ${registered.length} of ${entries.length} rules.`);
+        console.log(`DNR rules updated. Added ${registered.length} of ${entries.length} rules and site filters.`);
     } catch (e) {
         console.error("Error updating DNR rules:", e);
     }

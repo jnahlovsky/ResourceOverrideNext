@@ -389,6 +389,8 @@ const portOf = (entry) => (entry.type === 'redirect' ? getTargetPort(entry.redir
 const hint = (entry) => {
   if (entry.type === 'redirect' && /CONNECTION_REFUSED|ADDRESS_UNREACHABLE/.test(entry.error || '')) return 'is the local server running?';
   if (/BLOCKED_BY_CLIENT/.test(entry.error || '')) return 'blocked by another extension';
+  // A fetch/XHR redirected to another origin fails without CORS headers on the local server.
+  if (entry.error === 'net::ERR_FAILED' && entry.resourceType === 'xmlhttprequest') return 'CORS? the local server must allow this site';
   return '';
 };
 

@@ -1,6 +1,18 @@
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
-    <div class="bg-white flex flex-col w-[750px] max-w-[90vw] h-[550px] max-h-[90vh] shadow-2xl rounded-xl overflow-hidden">
+  <!-- Clicking the backdrop closes it, but not a click that started inside (e.g. selecting
+       text in a field and letting go outside). -->
+  <div
+    v-if="isOpen"
+    class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm"
+    @mousedown="isBackdropPressed = $event.target === $event.currentTarget"
+    @click.self="isBackdropPressed && close()"
+  >
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Settings"
+      class="bg-white flex flex-col w-[960px] 2xl:w-[1120px] max-w-[92vw] h-[720px] 2xl:h-[840px] max-h-[90vh] shadow-2xl rounded-xl overflow-hidden"
+    >
       <!-- Header -->
       <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0 bg-white">
         <h3 class="text-base font-semibold leading-6 text-slate-900 flex items-center gap-2">
@@ -12,6 +24,47 @@
 
       <!-- Content Area -->
       <div class="flex-1 overflow-y-auto p-8 bg-slate-50 text-[13px] text-slate-700 space-y-8">
+        <section>
+          <h4 class="text-lg font-bold text-slate-900 mb-1">Sites</h4>
+          <p class="text-slate-500 mb-4">
+            Where your rules work at all: redirects, header changes, file overrides and injections, and the HUD.
+            A site is the page you're on: what it loads, its frames, and opening the page itself.
+          </p>
+
+          <div class="bg-white rounded-md border border-slate-200 divide-y divide-slate-200">
+            <div v-for="list in SITE_LISTS" :key="list.key" class="px-4 py-3">
+              <div class="flex items-start justify-between gap-6">
+                <span class="shrink-0 w-56">
+                  <span class="block font-semibold text-slate-800">{{ list.label }}</span>
+                  <span class="block text-slate-500 text-[12px]">{{ list.description }}</span>
+                </span>
+                <UTextarea
+                  v-model="siteDrafts[list.key]"
+                  :placeholder="list.placeholder"
+                  autoresize
+                  :rows="1"
+                  :maxrows="4"
+                  size="sm"
+                  class="font-mono flex-1"
+                  :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none py-1.5' }"
+                  @change="saveSites(list.key)"
+                />
+              </div>
+              <ul v-if="siteWarnings[list.key].length > 0" class="mt-2 ml-62 space-y-0.5 text-[12px]">
+                <li v-for="warning in siteWarnings[list.key]" :key="warning.pattern" class="flex items-start gap-1.5 text-amber-700">
+                  <UIcon name="i-lucide-triangle-alert" class="w-3.5 h-3.5 shrink-0 mt-px" />
+                  <span><code class="font-mono font-semibold">{{ warning.pattern }}</code>: {{ warning.message }}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <p class="mt-2 text-[12px] text-slate-500">
+            <code class="font-mono">example.com</code> and <code class="font-mono">*.example.com</code> include all subdomains;
+            in the blocklist <code class="font-mono">*</code> can stand anywhere, e.g. <code class="font-mono">prod-*.example.com</code>.
+            The blocklist wins over the allowlist.
+          </p>
+        </section>
+
         <section>
           <h4 class="text-lg font-bold text-slate-900 mb-1">Page HUD</h4>
           <p class="text-slate-500 mb-4">
@@ -193,7 +246,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import { buildUrlMatch, getTargetPort } from '../extension/urlPattern.js';
+import { buildUrlMatch, getTargetPort, parseSiteList, isAllowlistSupported } from '../extension/urlPattern.js';
 import { getRuleDisplayName, canEditRulePort } from '../lib/ruleLabels.js';
 
 // Keep in sync with DEFAULTS in src/inject/hud.js.
@@ -235,9 +288,11 @@ const hasStorage = () => typeof chrome !== 'undefined' && chrome.storage?.local;
 
 const load = () => {
   if (!hasStorage()) return;
-  chrome.storage.local.get(Object.keys(HUD_DEFAULTS), (result) => {
+  chrome.storage.local.get([...Object.keys(HUD_DEFAULTS), 'siteAllowlist', 'siteBlocklist', 'siteErrors'], (result) => {
     settings.value = { ...HUD_DEFAULTS, ...result };
     hudSitesDraft.value = settings.value.hudSites;
+    siteDrafts.value = { siteAllowlist: result.siteAllowlist || '', siteBlocklist: result.siteBlocklist || '' };
+    siteErrors.value = result.siteErrors || {};
   });
 };
 
@@ -248,6 +303,42 @@ const update = (key, value) => {
 };
 
 const hudSitesDraft = ref('');
+
+const SITE_LISTS = [
+  {
+    key: 'siteAllowlist',
+    label: 'Only on these sites',
+    description: 'Allowlist. Empty = every site.',
+    placeholder: 'e.g. *.stage.example.com, localhost'
+  },
+  {
+    key: 'siteBlocklist',
+    label: 'Never on these sites',
+    description: 'Blocklist, e.g. production.',
+    placeholder: 'e.g. www.example.com, prod-*.example.com'
+  }
+];
+const siteDrafts = ref({ siteAllowlist: '', siteBlocklist: '' });
+// Problems Chrome reported when applying the blocklist (written by updateDNRRules).
+const siteErrors = ref({});
+
+const siteWarnings = computed(() => ({
+  // Chrome can only limit rules to whole domains, so other wildcards don't work here.
+  siteAllowlist: parseSiteList(siteDrafts.value.siteAllowlist)
+    .filter(site => !isAllowlistSupported(site))
+    .map(site => ({ pattern: site.pattern, message: 'ignored: here * only works at the start (*.example.com). Use the domain it ends with instead.' })),
+  siteBlocklist: parseSiteList(siteDrafts.value.siteBlocklist)
+    .filter(site => siteErrors.value[site.pattern])
+    .map(site => ({ pattern: site.pattern, message: siteErrors.value[site.pattern] }))
+}));
+
+// Saved as typed; the background turns the lists into Chrome rules right away.
+const saveSites = (key) => {
+  const value = siteDrafts.value[key].trim();
+  if (value === (settings.value[key] || '')) return;
+  update(key, value);
+  if (typeof chrome !== 'undefined' && chrome.runtime) chrome.runtime.sendMessage({ action: 'updateDNRRules' }).catch(() => {});
+};
 
 // Counts in the preview are made up; the HUD counts real requests on each page.
 const EXAMPLE_COUNTS = [[12, 0], [3, 1], [0, 0], [7, 0], [0, 0]];
@@ -309,7 +400,12 @@ const onMessage = (msg) => {
   }
 };
 
+const onStorageChanged = (changes, area) => {
+  if (area === 'local' && changes.siteErrors) siteErrors.value = changes.siteErrors.newValue || {};
+};
+
 onMounted(() => {
+  if (hasStorage()) chrome.storage.onChanged.addListener(onStorageChanged);
   if (!isSidePanelSupported) return;
   chrome.runtime.onMessage.addListener(onMessage);
   chrome.windows.getCurrent((win) => {
@@ -319,6 +415,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  if (hasStorage()) chrome.storage.onChanged.removeListener(onStorageChanged);
   if (isSidePanelSupported) chrome.runtime.onMessage.removeListener(onMessage);
 });
 
@@ -337,4 +434,13 @@ watch(isOpen, (newVal) => {
 const close = () => {
   isOpen.value = false;
 };
+
+const isBackdropPressed = ref(false);
+
+// Esc closes it too, unless a field inside handles Esc itself.
+const onKeyDown = (e) => {
+  if (e.key === 'Escape' && isOpen.value && !e.defaultPrevented) close();
+};
+onMounted(() => window.addEventListener('keydown', onKeyDown));
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown));
 </script>
