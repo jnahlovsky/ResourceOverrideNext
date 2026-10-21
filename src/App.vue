@@ -155,7 +155,7 @@
     <HelpModal v-model="isHelpOpen" />
 
     <!-- Settings Modal -->
-    <SettingsModal v-model="isSettingsOpen" />
+    <SettingsModal v-model="isSettingsOpen" :rules="globalRules" />
 
     <!-- Test Rules Modal -->
     <TestRulesModal v-model="isTestOpen" :rules="globalRules" />

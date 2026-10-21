@@ -55,6 +55,9 @@
                     newEl.appendChild(document.createTextNode(rule.file));
                 }
 
+                // Shown in the side panel's activity log.
+                chrome.runtime.sendMessage({ action: "activityInject", ruleId: rule.id, url: location.href }).catch(function() {});
+
                 if (rule.injectLocation === "head") {
                     var firstEl = document.head.children[0];
                     if (firstEl) {

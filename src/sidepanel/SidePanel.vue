@@ -14,6 +14,7 @@
         <div class="flex-1"></div>
         <div class="flex items-center gap-0.5 shrink-0">
           <UButton
+            v-if="view === 'rules'"
             variant="ghost"
             color="neutral"
             size="xs"
@@ -33,6 +34,17 @@
             :aria-pressed="isHudEnabled"
             :class="isHudEnabled ? 'text-primary-600 hover:text-primary-700' : 'text-slate-400 hover:text-slate-700'"
             @click="toggleHud"
+          />
+          <!-- The activity log is a side panel view; from the popup it opens the panel. -->
+          <UButton
+            variant="ghost"
+            color="neutral"
+            size="xs"
+            icon="i-lucide-square-terminal"
+            :title="view === 'activity' ? 'Back to the rules' : 'Activity log'"
+            :aria-pressed="view === 'activity'"
+            :class="view === 'activity' ? 'text-primary-600 hover:text-primary-700' : 'text-slate-400 hover:text-slate-700'"
+            @click="toggleActivity"
           />
           <!-- Opens the side panel from the popup, or closes it. -->
           <UButton
@@ -67,214 +79,218 @@
         />
       </header>
 
-      <!-- Icon Tabs -->
-      <nav role="tablist" aria-label="Rule types" class="shrink-0 flex bg-white border-b border-slate-200">
-        <button
-          v-for="group in RULE_GROUPS"
-          :key="group.value"
-          type="button"
-          role="tab"
-          :aria-selected="activeGroup === group.value"
-          :aria-label="group.label"
-          :title="group.label"
-          @click="activeGroup = group.value"
-          class="relative flex-1 min-w-0 flex items-center justify-center gap-1.5 py-2.5 transition-colors"
-          :class="activeGroup === group.value ? 'text-primary-600' : 'text-slate-400 hover:text-slate-700'"
-        >
-          <UIcon :name="group.icon" class="w-[18px] h-[18px] shrink-0" />
-          <span
-            class="text-[10px] font-semibold leading-4 min-w-4 px-1 rounded-full tabular-nums @max-2xs:hidden"
-            :class="activeGroup === group.value ? 'bg-primary-100 text-primary-700' : 'bg-slate-100 text-slate-500'"
-          >{{ groupCounts[group.value] }}</span>
-          <span v-if="activeGroup === group.value" class="absolute inset-x-3 @max-2xs:inset-x-1.5 bottom-0 h-[2px] rounded-full bg-primary-500"></span>
-        </button>
-      </nav>
+      <ActivityLog v-if="view === 'activity'" class="flex-1" :class="!isSidePanel && 'h-[540px]'" />
 
-      <!-- Rule List -->
-      <main class="flex-1 overflow-y-auto p-2 @max-2xs:p-1.5 min-h-0">
-        <!-- Slides down from the top while its row opens (0fr -> 1fr), so the list below
-             moves smoothly instead of jumping. Not animated when the panel opens paused. -->
-        <Transition
-          enter-active-class="transition-all duration-200 ease-out"
-          enter-from-class="grid-rows-[0fr] opacity-0 -translate-y-2"
-          enter-to-class="grid-rows-[1fr]"
-          leave-active-class="transition-all duration-150 ease-in"
-          leave-from-class="grid-rows-[1fr]"
-          leave-to-class="grid-rows-[0fr] opacity-0 -translate-y-2"
-        >
-          <div v-if="!isExtensionOn" class="grid">
-            <div class="min-h-0 overflow-hidden">
-              <div class="mb-2 flex items-center gap-2 rounded-md bg-slate-200/70 px-3 py-2 text-[12px] text-slate-600">
-                <UIcon name="i-lucide-pause" class="w-3.5 h-3.5 shrink-0" />
-                <span class="truncate">All rules are paused.</span>
-              </div>
-            </div>
-          </div>
-        </Transition>
-
-        <!-- Every tab's list sits in the same grid cell and only the active one is visible,
-             so the area is as tall as the longest list and switching tabs doesn't resize it. -->
-        <div class="grid">
-          <section
+      <template v-else>
+        <!-- Icon Tabs -->
+        <nav role="tablist" aria-label="Rule types" class="shrink-0 flex bg-white border-b border-slate-200">
+          <button
             v-for="group in RULE_GROUPS"
             :key="group.value"
-            role="tabpanel"
+            type="button"
+            role="tab"
+            :aria-selected="activeGroup === group.value"
             :aria-label="group.label"
-            :aria-hidden="activeGroup !== group.value"
-            class="[grid-area:1/1] min-w-0"
-            :class="activeGroup !== group.value && 'invisible'"
+            :title="group.label"
+            @click="activeGroup = group.value"
+            class="relative flex-1 min-w-0 flex items-center justify-center gap-1.5 py-2.5 transition-colors"
+            :class="activeGroup === group.value ? 'text-primary-600' : 'text-slate-400 hover:text-slate-700'"
           >
-            <div v-if="!isLoading && groupRules[group.value].length === 0" class="flex flex-col items-center text-center gap-2 text-slate-400 py-12 px-3">
-              <UIcon :name="group.icon" class="w-7 h-7" />
-              <span class="text-[12px]">No {{ group.label.toLowerCase() }} yet.</span>
+            <UIcon :name="group.icon" class="w-[18px] h-[18px] shrink-0" />
+            <span
+              class="text-[10px] font-semibold leading-4 min-w-4 px-1 rounded-full tabular-nums @max-2xs:hidden"
+              :class="activeGroup === group.value ? 'bg-primary-100 text-primary-700' : 'bg-slate-100 text-slate-500'"
+            >{{ groupCounts[group.value] }}</span>
+            <span v-if="activeGroup === group.value" class="absolute inset-x-3 @max-2xs:inset-x-1.5 bottom-0 h-[2px] rounded-full bg-primary-500"></span>
+          </button>
+        </nav>
+
+        <!-- Rule List -->
+        <main class="flex-1 overflow-y-auto p-2 @max-2xs:p-1.5 min-h-0">
+          <!-- Slides down from the top while its row opens (0fr -> 1fr), so the list below
+               moves smoothly instead of jumping. Not animated when the panel opens paused. -->
+          <Transition
+            enter-active-class="transition-all duration-200 ease-out"
+            enter-from-class="grid-rows-[0fr] opacity-0 -translate-y-2"
+            enter-to-class="grid-rows-[1fr]"
+            leave-active-class="transition-all duration-150 ease-in"
+            leave-from-class="grid-rows-[1fr]"
+            leave-to-class="grid-rows-[0fr] opacity-0 -translate-y-2"
+          >
+            <div v-if="!isExtensionOn" class="grid">
+              <div class="min-h-0 overflow-hidden">
+                <div class="mb-2 flex items-center gap-2 rounded-md bg-slate-200/70 px-3 py-2 text-[12px] text-slate-600">
+                  <UIcon name="i-lucide-pause" class="w-3.5 h-3.5 shrink-0" />
+                  <span class="truncate">All rules are paused.</span>
+                </div>
+              </div>
             </div>
+          </Transition>
 
-            <draggable
-              v-else
-              tag="ul"
-              :model-value="groupRules[group.value]"
-              @update:model-value="(list) => reorderGroup(group, list)"
-              item-key="id"
-              handle=".drag-handle"
-              :animation="150"
-              :class="isCompact ? 'space-y-1' : 'space-y-1.5'"
+          <!-- Every tab's list sits in the same grid cell and only the active one is visible,
+               so the area is as tall as the longest list and switching tabs doesn't resize it. -->
+          <div class="grid">
+            <section
+              v-for="group in RULE_GROUPS"
+              :key="group.value"
+              role="tabpanel"
+              :aria-label="group.label"
+              :aria-hidden="activeGroup !== group.value"
+              class="[grid-area:1/1] min-w-0"
+              :class="activeGroup !== group.value && 'invisible'"
             >
-              <template #item="{ element: rule }">
-                <li class="group bg-white rounded-md border shadow-xs transition-colors" :class="expandedId === rule.id ? 'border-slate-300' : 'border-slate-200'">
-                  <!-- Clicking the row opens the rule's full fields below it (one at a time). -->
-                  <div
-                    class="flex items-center cursor-pointer transition-opacity"
-                    :class="[
-                      isCompact ? 'gap-1.5 pl-1 pr-2 py-1.5' : 'gap-2 pl-1 pr-2.5 py-2 @max-2xs:gap-1.5 @max-2xs:pr-1.5',
-                      (!rule.on || !isExtensionOn) && 'opacity-60'
-                    ]"
-                    :title="`${getRuleDisplayName(rule)} · ${getRuleSummary(rule)}`"
-                    @click="toggleExpanded(rule)"
-                  >
-                    <UIcon
-                      name="i-lucide-grip-vertical"
-                      class="drag-handle shrink-0 w-4 h-4 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing"
-                      title="Drag to reorder"
-                      @click.stop
-                    />
-                    <div class="min-w-0 flex-1">
-                      <!-- Name and port are editable in place: click, type, Enter (Esc cancels). -->
-                      <div class="flex items-center gap-1.5 min-w-0">
-                        <input
-                          v-if="isEditing(rule, 'name')"
-                          v-model="editDraft"
-                          data-inline-edit
-                          :placeholder="getRuleDisplayName(rule)"
-                          aria-label="Rule name"
-                          class="min-w-0 flex-1 font-semibold leading-5 text-slate-800 bg-white border border-primary-300 rounded px-1 -mx-1 outline-none"
-                          :class="isCompact ? 'text-[12px]' : 'text-[13px]'"
-                          @click.stop
-                          @blur="commitEdit"
-                          @keydown.enter.prevent="commitEdit"
-                          @keydown.esc.prevent="cancelEdit"
-                        />
-                        <button
-                          v-else
-                          type="button"
-                          class="min-w-0 truncate text-left cursor-text font-semibold leading-5 text-slate-800 hover:text-slate-950"
-                          :class="isCompact ? 'text-[12px]' : 'text-[13px]'"
-                          title="Click to rename"
-                          @click.stop="startEdit(rule, 'name')"
-                        >{{ getRuleDisplayName(rule) }}</button>
+              <div v-if="!isLoading && groupRules[group.value].length === 0" class="flex flex-col items-center text-center gap-2 text-slate-400 py-12 px-3">
+                <UIcon :name="group.icon" class="w-7 h-7" />
+                <span class="text-[12px]">No {{ group.label.toLowerCase() }} yet.</span>
+              </div>
 
-                        <UIcon
-                          v-if="rule.on && ruleErrors[rule.id]"
-                          name="i-lucide-triangle-alert"
-                          class="shrink-0 w-3.5 h-3.5 text-red-500"
-                          :title="`Not applied: ${ruleErrors[rule.id]}`"
-                        />
-                        <template v-if="canEditRulePort(rule)">
+              <draggable
+                v-else
+                tag="ul"
+                :model-value="groupRules[group.value]"
+                @update:model-value="(list) => reorderGroup(group, list)"
+                item-key="id"
+                handle=".drag-handle"
+                :animation="150"
+                :class="isCompact ? 'space-y-1' : 'space-y-1.5'"
+              >
+                <template #item="{ element: rule }">
+                  <li class="group bg-white rounded-md border shadow-xs transition-colors" :class="expandedId === rule.id ? 'border-slate-300' : 'border-slate-200'">
+                    <!-- Clicking the row opens the rule's full fields below it (one at a time). -->
+                    <div
+                      class="flex items-center cursor-pointer transition-opacity"
+                      :class="[
+                        isCompact ? 'gap-1.5 pl-1 pr-2 py-1.5' : 'gap-2 pl-1 pr-2.5 py-2 @max-2xs:gap-1.5 @max-2xs:pr-1.5',
+                        (!rule.on || !isExtensionOn) && 'opacity-60'
+                      ]"
+                      :title="`${getRuleDisplayName(rule)} · ${getRuleSummary(rule)}`"
+                      @click="toggleExpanded(rule)"
+                    >
+                      <UIcon
+                        name="i-lucide-grip-vertical"
+                        class="drag-handle shrink-0 w-4 h-4 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing"
+                        title="Drag to reorder"
+                        @click.stop
+                      />
+                      <div class="min-w-0 flex-1">
+                        <!-- Name and port are editable in place: click, type, Enter (Esc cancels). -->
+                        <div class="flex items-center gap-1.5 min-w-0">
                           <input
-                            v-if="isEditing(rule, 'port')"
+                            v-if="isEditing(rule, 'name')"
                             v-model="editDraft"
                             data-inline-edit
-                            inputmode="numeric"
-                            maxlength="5"
-                            placeholder="port"
-                            aria-label="Destination port"
-                            class="shrink-0 w-[7ch] font-mono text-[10px] font-semibold leading-4 px-1 rounded bg-white border border-primary-300 text-primary-700 outline-none"
+                            :placeholder="getRuleDisplayName(rule)"
+                            aria-label="Rule name"
+                            class="min-w-0 flex-1 font-semibold leading-5 text-slate-800 bg-white border border-primary-300 rounded px-1 -mx-1 outline-none"
+                            :class="isCompact ? 'text-[12px]' : 'text-[13px]'"
                             @click.stop
                             @blur="commitEdit"
                             @keydown.enter.prevent="commitEdit"
                             @keydown.esc.prevent="cancelEdit"
                           />
                           <button
-                            v-else-if="getRulePort(rule)"
-                            type="button"
-                            class="shrink-0 cursor-text font-mono text-[10px] font-semibold leading-4 px-1.5 rounded bg-primary-100 text-primary-700 hover:bg-primary-200 transition-colors"
-                            :title="`Redirects to port ${getRulePort(rule)}. Click to change it.`"
-                            @click.stop="startEdit(rule, 'port')"
-                          >:{{ getRulePort(rule) }}</button>
-                          <button
                             v-else
                             type="button"
-                            class="shrink-0 cursor-text font-mono text-[10px] font-semibold leading-4 px-1.5 rounded border border-dashed border-slate-300 text-slate-400 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-slate-700 transition-opacity"
-                            title="Add a port to the destination URL"
-                            @click.stop="startEdit(rule, 'port')"
-                          >+port</button>
-                        </template>
+                            class="min-w-0 truncate text-left cursor-text font-semibold leading-5 text-slate-800 hover:text-slate-950"
+                            :class="isCompact ? 'text-[12px]' : 'text-[13px]'"
+                            title="Click to rename"
+                            @click.stop="startEdit(rule, 'name')"
+                          >{{ getRuleDisplayName(rule) }}</button>
+
+                          <UIcon
+                            v-if="rule.on && ruleErrors[rule.id]"
+                            name="i-lucide-triangle-alert"
+                            class="shrink-0 w-3.5 h-3.5 text-red-500"
+                            :title="`Not applied: ${ruleErrors[rule.id]}`"
+                          />
+                          <template v-if="canEditRulePort(rule)">
+                            <input
+                              v-if="isEditing(rule, 'port')"
+                              v-model="editDraft"
+                              data-inline-edit
+                              inputmode="numeric"
+                              maxlength="5"
+                              placeholder="port"
+                              aria-label="Destination port"
+                              class="shrink-0 w-[7ch] font-mono text-[10px] font-semibold leading-4 px-1 rounded bg-white border border-primary-300 text-primary-700 outline-none"
+                              @click.stop
+                              @blur="commitEdit"
+                              @keydown.enter.prevent="commitEdit"
+                              @keydown.esc.prevent="cancelEdit"
+                            />
+                            <button
+                              v-else-if="getRulePort(rule)"
+                              type="button"
+                              class="shrink-0 cursor-text font-mono text-[10px] font-semibold leading-4 px-1.5 rounded bg-primary-100 text-primary-700 hover:bg-primary-200 transition-colors"
+                              :title="`Redirects to port ${getRulePort(rule)}. Click to change it.`"
+                              @click.stop="startEdit(rule, 'port')"
+                            >:{{ getRulePort(rule) }}</button>
+                            <button
+                              v-else
+                              type="button"
+                              class="shrink-0 cursor-text font-mono text-[10px] font-semibold leading-4 px-1.5 rounded border border-dashed border-slate-300 text-slate-400 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-slate-700 transition-opacity"
+                              title="Add a port to the destination URL"
+                              @click.stop="startEdit(rule, 'port')"
+                            >+port</button>
+                          </template>
+                        </div>
+                        <div v-if="!isCompact" class="text-[11px] font-mono text-slate-400 truncate @max-xs:hidden">
+                          <span v-if="rule.type === 'fileOverride' || rule.type === 'fileInject'" class="font-sans font-medium text-slate-500">{{ getRuleTypeLabel(rule.type) }} · </span>{{ getRuleSummary(rule) }}
+                        </div>
                       </div>
-                      <div v-if="!isCompact" class="text-[11px] font-mono text-slate-400 truncate @max-xs:hidden">
-                        <span v-if="rule.type === 'fileOverride' || rule.type === 'fileInject'" class="font-sans font-medium text-slate-500">{{ getRuleTypeLabel(rule.type) }} · </span>{{ getRuleSummary(rule) }}
-                      </div>
+                      <USwitch
+                        :model-value="rule.on"
+                        @update:model-value="(on) => toggleRule(rule, on)"
+                        @click.stop
+                        color="success"
+                        size="sm"
+                        class="shrink-0"
+                        :ui="{ inactive: 'bg-slate-400' }"
+                        :aria-label="`Toggle ${getRuleDisplayName(rule)}`"
+                      />
+                      <button
+                        type="button"
+                        class="shrink-0 -mr-1 flex items-center justify-center w-5 h-5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                        :aria-expanded="expandedId === rule.id"
+                        :aria-label="`${expandedId === rule.id ? 'Hide' : 'Show'} the fields of ${getRuleDisplayName(rule)}`"
+                        @click.stop="toggleExpanded(rule)"
+                      >
+                        <UIcon name="i-lucide-chevron-down" class="w-4 h-4 transition-transform" :class="expandedId === rule.id && 'rotate-180'" />
+                      </button>
                     </div>
-                    <USwitch
-                      :model-value="rule.on"
-                      @update:model-value="(on) => toggleRule(rule, on)"
-                      @click.stop
-                      color="success"
-                      size="sm"
-                      class="shrink-0"
-                      :ui="{ inactive: 'bg-slate-400' }"
-                      :aria-label="`Toggle ${getRuleDisplayName(rule)}`"
-                    />
-                    <button
-                      type="button"
-                      class="shrink-0 -mr-1 flex items-center justify-center w-5 h-5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-                      :aria-expanded="expandedId === rule.id"
-                      :aria-label="`${expandedId === rule.id ? 'Hide' : 'Show'} the fields of ${getRuleDisplayName(rule)}`"
-                      @click.stop="toggleExpanded(rule)"
-                    >
-                      <UIcon name="i-lucide-chevron-down" class="w-4 h-4 transition-transform" :class="expandedId === rule.id && 'rotate-180'" />
-                    </button>
-                  </div>
 
-                  <div v-if="expandedId === rule.id" class="border-t border-slate-200 px-2 pt-1.5 pb-2">
-                    <component
-                      :is="RULE_EDITORS[rule.type]"
-                      :rule="rule"
-                      bare
-                      @update="(updated) => updateRule(rule.id, updated)"
-                      @edit-file="openEditor"
-                    />
-                  </div>
-                </li>
-              </template>
-            </draggable>
-          </section>
-        </div>
-      </main>
+                    <div v-if="expandedId === rule.id" class="border-t border-slate-200 px-2 pt-1.5 pb-2">
+                      <component
+                        :is="RULE_EDITORS[rule.type]"
+                        :rule="rule"
+                        bare
+                        @update="(updated) => updateRule(rule.id, updated)"
+                        @edit-file="openEditor"
+                      />
+                    </div>
+                  </li>
+                </template>
+              </draggable>
+            </section>
+          </div>
+        </main>
 
-      <!-- Footer -->
-      <footer class="shrink-0 border-t border-slate-200 bg-white px-2 py-1.5">
-        <UButton
-          variant="ghost"
-          color="neutral"
-          size="sm"
-          block
-          icon="i-lucide-external-link"
-          title="Open editor"
-          class="text-slate-600 font-medium"
-          @click="openEditor"
-        >
-          <span class="truncate @max-2xs:hidden">Open editor</span>
-        </UButton>
-      </footer>
+        <!-- Footer -->
+        <footer class="shrink-0 border-t border-slate-200 bg-white px-2 py-1.5">
+          <UButton
+            variant="ghost"
+            color="neutral"
+            size="sm"
+            block
+            icon="i-lucide-external-link"
+            title="Open editor"
+            class="text-slate-600 font-medium"
+            @click="openEditor"
+          >
+            <span class="truncate @max-2xs:hidden">Open editor</span>
+          </UButton>
+        </footer>
+      </template>
     </div>
   </UApp>
 </template>
@@ -288,6 +304,7 @@ import FileOverrideRule from '../components/FileOverrideRule.vue';
 import FileInjectRule from '../components/FileInjectRule.vue';
 import { useRules } from '../composables/useRules';
 import { useRuleErrors } from '../composables/useRuleErrors.js';
+import ActivityLog from './ActivityLog.vue';
 import { RULE_GROUPS, getRuleDisplayName, getRuleSummary, getRulePort, getRuleTypeLabel, canEditRulePort } from '../lib/ruleLabels.js';
 import { setTargetPort, parsePortInput } from '../extension/urlPattern.js';
 
@@ -425,6 +442,23 @@ const toggleHud = () => {
 };
 
 const isSidePanelSupported = hasChrome && !!chrome.sidePanel;
+
+// 'rules' or 'activity'. The side panel remembers it; the popup shows the activity log in
+// the side panel, where there's room for it (or itself, where there's no side panel).
+const VIEW_KEY = 'sidePanelView';
+const view = ref('rules');
+const toggleActivity = () => {
+  if (isSidePanel || !isSidePanelSupported) {
+    view.value = view.value === 'activity' ? 'rules' : 'activity';
+    if (isSidePanel) chrome.storage.local.set({ [VIEW_KEY]: view.value });
+    return;
+  }
+  // Both calls right away: sidePanel.open() needs the click's user gesture.
+  chrome.storage.local.set({ [VIEW_KEY]: 'activity' });
+  chrome.sidePanel.open({ windowId: windowId.value })
+    .then(() => window.close())
+    .catch((err) => console.error('Could not open the side panel:', err));
+};
 const isSidePanelOpen = ref(isSidePanel);
 
 // sidePanel.open() needs the click's user gesture, so it uses the window id fetched on mount.
@@ -472,6 +506,7 @@ const onStorageChanged = (changes, area) => {
   if (area !== 'local') return;
   if (changes.isExtensionOn) isExtensionOn.value = changes.isExtensionOn.newValue !== 'false';
   if (changes.hudEnabled) isHudEnabled.value = changes.hudEnabled.newValue !== false;
+  if (isSidePanel && changes[VIEW_KEY]) view.value = changes[VIEW_KEY].newValue === 'activity' ? 'activity' : 'rules';
 };
 
 const onPageHide = () => announce(false);
@@ -488,7 +523,7 @@ onMounted(async () => {
 
   fetchDomains();
   const [settings, win] = await Promise.all([
-    chrome.storage.local.get(['isExtensionOn', 'hudEnabled']),
+    chrome.storage.local.get(['isExtensionOn', 'hudEnabled', VIEW_KEY]),
     chrome.windows.getCurrent()
   ]);
   windowId.value = win.id;
@@ -497,6 +532,7 @@ onMounted(async () => {
     isSidePanelOpen.value = panels.length > 0;
   }
   isHudEnabled.value = settings.hudEnabled !== false;
+  if (isSidePanel && settings[VIEW_KEY] === 'activity') view.value = 'activity';
   // Set last: the header renders once this is known.
   isExtensionOn.value = settings.isExtensionOn !== 'false';
   announce(true);

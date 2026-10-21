@@ -16,7 +16,19 @@
     document.dispatchEvent(new CustomEvent(REPLACE_EVENT));
 
     // Keep in sync with HUD_DEFAULTS in src/components/SettingsModal.vue.
-    var DEFAULTS = { hudEnabled: true, hudOpacity: 0.85, hudPosition: null };
+    var DEFAULTS = {
+        hudEnabled: true,
+        hudOpacity: 0.85,
+        hudPosition: null,
+        // What the HUD lists and shows for each redirect.
+        hudOnlyEnabled: false,
+        hudOnlyUsed: false,
+        hudShowCounts: true,
+        hudShowSwitches: true,
+        hudPortMode: "edit", // "edit" | "show" | "hide"
+        // Comma-separated domains the HUD is limited to; empty = every site.
+        hudSites: ""
+    };
     // Distance kept from the viewport edges; also the default distance from the top.
     var EDGE_GAP = 10;
     // Drops this close to an edge (or the horizontal centre) snap onto it.
@@ -24,7 +36,7 @@
     // Pointer travel below this is a click on the handle, not a drag.
     var DRAG_THRESHOLD = 3;
 
-    var state = { hudEnabled: DEFAULTS.hudEnabled, hudOpacity: DEFAULTS.hudOpacity, hudPosition: null, hudRedirects: [] };
+    var state = Object.assign({}, DEFAULTS, { hudRedirects: [] });
     var host = null;
     var hud = null;
     var handle = null;
@@ -36,6 +48,14 @@
     var keepVisible = false;
     // The redirect whose port is being typed; updates wait until it's done.
     var editingId = null;
+    // Redirects switched from the HUD stay listed on this page, even where the settings
+    // would hide them now (e.g. "only enabled"), so they can be switched back.
+    var sticky = {};
+    // Requests each redirect changed on this page, from the activity log
+    // (src/extension/activityLog.js), by log entry id.
+    var activity = {};
+    var pageStart = performance.timeOrigin || Date.now();
+    var renderQueued = false;
 
     // The top layer (popover API) keeps the HUD above every page element, whatever the
     // page's z-indexes, transforms or overflow are.
@@ -66,6 +86,8 @@
         ".sep { flex: none; width: 1px; height: 14px; margin: 0 10px; background: rgba(255, 255, 255, 0.18); }",
         ".name { min-width: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; transition: opacity 0.15s ease; }",
         ".is-off .name, .is-off .port { opacity: 0.5; }",
+        ".count { flex: none; font: 600 10.5px/16px ui-monospace, SFMono-Regular, Menlo, monospace; color: rgba(248, 250, 252, 0.55); }",
+        ".count.failed { color: #fca5a5; }",
         ".has-error .name { color: #fca5a5; text-decoration: underline wavy rgba(252, 165, 165, 0.7); text-underline-offset: 3px; }",
         "button { all: unset; box-sizing: border-box; }",
         "button:focus-visible, input:focus-visible { outline: 2px solid #00dc82; outline-offset: 1px; }",
@@ -288,9 +310,50 @@
         window.addEventListener("resize", applyPosition);
     };
 
+    // Same parsing as the rules' domain filters (parseDomainList in urlPattern.js).
+    var siteAllowed = function() {
+        var sites = String(state.hudSites || "").split(/[\s,;]+/).map(function(entry) {
+            return entry.trim().toLowerCase()
+                .replace(/^[a-z][a-z0-9+.-]*:\/\//, "")
+                .replace(/[\/?#].*$/, "")
+                .replace(/:\d+$/, "")
+                .replace(/^\*\./, "")
+                .replace(/\.$/, "");
+        }).filter(Boolean);
+        var host = location.hostname.toLowerCase();
+        return sites.length === 0 || sites.some(function(domain) {
+            return host === domain || host.endsWith("." + domain);
+        });
+    };
+
+    var countsFor = function(ruleId) {
+        var counts = { total: 0, failed: 0 };
+        Object.keys(activity).forEach(function(id) {
+            if (activity[id].ruleId !== ruleId) return;
+            counts.total++;
+            if (activity[id].failed) counts.failed++;
+        });
+        return counts;
+    };
+
+    var addActivity = function(entry) {
+        // Only this page's requests, not the ones of earlier pages in the tab.
+        if (entry && entry.time >= pageStart - 1) activity[entry.id] = entry;
+    };
+
+    var visibleRedirects = function() {
+        var redirects = Array.isArray(state.hudRedirects) ? state.hudRedirects : [];
+        return redirects.filter(function(redirect) {
+            if (sticky[redirect.id]) return true;
+            if (state.hudOnlyEnabled && !redirect.on) return false;
+            if (state.hudOnlyUsed && countsFor(redirect.id).total === 0) return false;
+            return true;
+        });
+    };
+
     var shouldShow = function() {
         var redirects = Array.isArray(state.hudRedirects) ? state.hudRedirects : [];
-        return state.hudEnabled && redirects.length > 0 &&
+        return state.hudEnabled && siteAllowed() && visibleRedirects().length > 0 &&
             (keepVisible || redirects.some(function(redirect) { return redirect.on; }));
     };
 
@@ -306,6 +369,7 @@
         if (!e.isTrusted) return;
         redirect.on = !redirect.on;
         keepVisible = true;
+        sticky[redirect.id] = true;
         render();
         updateRule(redirect, { on: redirect.on });
     };
@@ -352,12 +416,56 @@
     };
 
     var renderItem = function(redirect) {
+        var counts = countsFor(redirect.id);
         var item = document.createElement("span");
         item.className = "item" + (redirect.on ? "" : " is-off") + (redirect.error ? " has-error" : "");
         item.title = redirect.error
             ? redirect.name + ": not applied. " + redirect.error
-            : redirect.name + (redirect.port ? " → :" + redirect.port : "") + (redirect.on ? "" : " (off)");
+            : redirect.name + (redirect.port ? " → :" + redirect.port : "") + (redirect.on ? "" : " (off)") +
+                (counts.total ? " · " + counts.total + " request" + (counts.total === 1 ? "" : "s") + " on this page" +
+                    (counts.failed ? ", " + counts.failed + " failed" : "") : "");
 
+        if (state.hudShowSwitches) item.appendChild(renderSwitch(redirect));
+
+        var name = document.createElement("span");
+        name.className = "name";
+        name.textContent = redirect.name;
+        item.appendChild(name);
+
+        var portMode = state.hudPortMode === "hide" || state.hudPortMode === "show" ? state.hudPortMode : "edit";
+        var canEdit = portMode === "edit" && redirect.canEditPort;
+        if (portMode !== "hide" && (redirect.port || canEdit)) {
+            var port = document.createElement(canEdit ? "button" : "span");
+            port.className = "port" + (redirect.port ? "" : " add-port");
+            port.textContent = redirect.port ? ":" + redirect.port : "+port";
+            if (canEdit) {
+                port.type = "button";
+                port.title = redirect.port ? "Click to change the port" : "Add a port to the destination URL";
+                port.addEventListener("click", function(e) {
+                    startPortEdit(redirect, port, e);
+                });
+            } else {
+                port.style.cursor = "default";
+            }
+            item.appendChild(port);
+        }
+
+        if (state.hudShowCounts && counts.total > 0) {
+            var count = document.createElement("span");
+            count.className = "count";
+            count.textContent = "×" + counts.total;
+            item.appendChild(count);
+            if (counts.failed > 0) {
+                var failed = document.createElement("span");
+                failed.className = "count failed";
+                failed.textContent = "✕" + counts.failed;
+                item.appendChild(failed);
+            }
+        }
+        return item;
+    };
+
+    var renderSwitch = function(redirect) {
         var toggle = document.createElement("button");
         toggle.type = "button";
         toggle.className = "switch";
@@ -367,27 +475,7 @@
         toggle.addEventListener("click", function(e) {
             toggleRedirect(redirect, e);
         });
-        item.appendChild(toggle);
-
-        var name = document.createElement("span");
-        name.className = "name";
-        name.textContent = redirect.name;
-        item.appendChild(name);
-
-        if (redirect.port || redirect.canEditPort) {
-            var port = document.createElement(redirect.canEditPort ? "button" : "span");
-            port.className = "port" + (redirect.port ? "" : " add-port");
-            port.textContent = redirect.port ? ":" + redirect.port : "+port";
-            if (redirect.canEditPort) {
-                port.type = "button";
-                port.title = redirect.port ? "Click to change the port" : "Add a port to the destination URL";
-                port.addEventListener("click", function(e) {
-                    startPortEdit(redirect, port, e);
-                });
-            }
-            item.appendChild(port);
-        }
-        return item;
+        return toggle;
     };
 
     var attach = function() {
@@ -409,7 +497,7 @@
         list.textContent = "";
         hud.style.opacity = String(state.hudOpacity);
 
-        state.hudRedirects.forEach(function(redirect, index) {
+        visibleRedirects().forEach(function(redirect, index) {
             if (index > 0) {
                 var sep = document.createElement("span");
                 sep.className = "sep";
@@ -444,7 +532,29 @@
     // Registered after the dispatch above, so this copy only hears the next one.
     document.addEventListener(REPLACE_EVENT, destroy);
 
-    var keys = ["hudEnabled", "hudOpacity", "hudPosition", "hudRedirects"];
+    var keys = Object.keys(DEFAULTS).concat("hudRedirects");
+
+    // Many requests can arrive at once; one render per frame is enough.
+    var scheduleRender = function() {
+        if (renderQueued) return;
+        renderQueued = true;
+        requestAnimationFrame(function() {
+            renderQueued = false;
+            render();
+        });
+    };
+
+    chrome.runtime.sendMessage({ action: "hudGetActivity" }).then(function(entries) {
+        (entries || []).forEach(addActivity);
+        scheduleRender();
+    }).catch(function() {});
+
+    chrome.runtime.onMessage.addListener(function(msg) {
+        if (msg && msg.action === "hudActivity" && !isDestroyed) {
+            addActivity(msg.entry);
+            scheduleRender();
+        }
+    });
 
     chrome.storage.local.get(keys, function(result) {
         keys.forEach(function(key) {
@@ -463,7 +573,7 @@
         var changed = false;
         keys.forEach(function(key) {
             if (changes[key]) {
-                state[key] = changes[key].newValue !== undefined ? changes[key].newValue : DEFAULTS[key];
+                state[key] = changes[key].newValue !== undefined ? changes[key].newValue : (key === "hudRedirects" ? [] : DEFAULTS[key]);
                 changed = true;
             }
         });

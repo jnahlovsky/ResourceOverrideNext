@@ -1,6 +1,7 @@
 /* global bgapp, chrome */
 import { buildUrlMatch, applyDomainFilters, getTargetPort, getTargetHost } from './urlPattern.js';
 import { canEditRulePort } from '../lib/ruleLabels.js';
+import { setActivityRules } from './activityLog.js';
 
 const RESOURCE_TYPES = [
     "main_frame", "sub_frame", "stylesheet", "script", "image",
@@ -166,6 +167,11 @@ export async function updateDNRRules() {
         // Shown on the rule cards and in the popup / side panel (useRuleErrors).
         const ruleErrors = { ...skippedErrors, ...errors };
         await chrome.storage.local.set({ ruleErrors });
+        // The activity log attributes requests to the rules that are actually in effect.
+        setActivityRules(!isExtensionOn ? [] : domains
+            .filter(domainObj => domainObj.on)
+            .flatMap(domainObj => domainObj.rules || [])
+            .filter(rule => rule.on && !ruleErrors[rule.id]));
         await publishHudRedirects(domains, isExtensionOn, ruleErrors);
 
         console.log(`DNR rules updated. Added ${registered.length} of ${entries.length} rules.`);

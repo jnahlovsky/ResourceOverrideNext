@@ -8,6 +8,7 @@ import './extractMime.js';
 import './messageListener.js';
 import './action.js';
 import { updateDNRRules } from './netRequestRules.js';
+import './activityLog.js';
 import { connectDevReload } from './devReload.js';
 
 globalThis.bgapp.updateDNRRules = updateDNRRules;
