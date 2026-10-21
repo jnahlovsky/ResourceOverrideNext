@@ -96,7 +96,7 @@
         "button:focus-visible, input:focus-visible { outline: 2px solid #00dc82; outline-offset: 1px; }",
         // On/off switch, like the ones in the extension's UI.
         ".switch { flex: none; position: relative; width: 24px; height: 14px; border-radius: 7px; cursor: pointer;",
-        "  background: rgba(255, 255, 255, 0.25); transition: background 0.15s ease; }",
+        "  background: rgba(255, 255, 255, 0.42); transition: background 0.15s ease; }",
         ".switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%;",
         "  background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); transition: transform 0.15s ease; }",
         ".switch[aria-checked='true'] { background: #00c16a; }",
@@ -141,7 +141,13 @@
         ".log-error { color: #fda4af; overflow-wrap: anywhere; word-break: normal; }",
         ".log-error .hint { color: rgba(253, 164, 175, 0.55); }",
         ".log-empty { padding: 14px 12px; color: rgba(200, 245, 212, 0.45); }",
-        ".log-empty::before { content: '$ '; color: #34d399; }"
+        ".log-empty::before { content: '$ '; color: #34d399; }",
+        // Tooltips: like the extension's own (src/lib/tooltips.js), shown almost at once.
+        ".tip { position: fixed; inset: auto; margin: 0; border: 0; z-index: 2147483647; max-width: 300px; padding: 4px 8px;",
+        "  border-radius: 6px; background: rgba(15, 23, 42, 0.94); color: #f8fafc; white-space: pre-line; overflow-wrap: anywhere;",
+        "  font: 500 11.5px/16px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);",
+        "  pointer-events: none; opacity: 0; transition: opacity 80ms ease; }",
+        ".tip.is-visible { opacity: 1; }"
     ].join("\n");
 
     // Lucide "move" icon (ISC licence).
@@ -372,7 +378,7 @@
         meta.appendChild(el("span", "", [entry.method, entry.resourceType].filter(Boolean).join(" ")));
         if (entry.tabId < 0) {
             var sw = el("span", "log-sw", "SW");
-            sw.title = "Requested by the site's service worker";
+            sw.setAttribute("data-tip", "Requested by the site's service worker");
             meta.appendChild(sw);
         }
         meta.appendChild(el("span", "grow"));
@@ -500,6 +506,52 @@
         }
     };
 
+    // Tooltips for everything with data-tip in the HUD and its log, after a short delay
+    // instead of the browser's slow native ones.
+    var tipEl = null;
+    var tipAnchor = null;
+    var tipTimer = null;
+
+    var hideTip = function() {
+        clearTimeout(tipTimer);
+        tipAnchor = null;
+        if (tipEl) tipEl.classList.remove("is-visible");
+    };
+
+    var showTip = function(el) {
+        var text = el.getAttribute("data-tip");
+        if (!text || !el.isConnected) return;
+        tipAnchor = el;
+        tipEl.textContent = text;
+        // Shown again each time, so it's above the log panel in the top layer.
+        if (supportsPopover) {
+            if (tipEl.matches(":popover-open")) tipEl.hidePopover();
+            tipEl.showPopover();
+        }
+        var box = el.getBoundingClientRect();
+        var vp = viewport();
+        var left = clamp(box.left + box.width / 2 - tipEl.offsetWidth / 2, 6, vp.width - tipEl.offsetWidth - 6);
+        var above = box.top - 6 - tipEl.offsetHeight;
+        tipEl.style.left = left + "px";
+        tipEl.style.top = (above >= 6 ? above : Math.min(box.bottom + 6, vp.height - tipEl.offsetHeight - 6)) + "px";
+        tipEl.classList.add("is-visible");
+    };
+
+    var onTipOver = function(e) {
+        var el = e.target.closest ? e.target.closest("[data-tip]") : null;
+        if (el === tipAnchor) return;
+        hideTip();
+        if (el && el.getAttribute("data-tip") && !drag) {
+            tipTimer = setTimeout(function() {
+                showTip(el);
+            }, 120);
+        }
+    };
+
+    var onTipOut = function(e) {
+        if (tipAnchor && !tipAnchor.contains(e.relatedTarget)) hideTip();
+    };
+
     var ensureHud = function() {
         if (host) return;
         host = document.createElement("resourced-hud");
@@ -519,7 +571,7 @@
 
         handle = document.createElement("span");
         handle.className = "handle";
-        handle.title = "Drag to move the HUD · double-click to reset";
+        handle.setAttribute("data-tip", "Drag to move the HUD · double-click to reset");
         handle.setAttribute("aria-label", "Move the HUD");
         handle.innerHTML = moveIconSvg;
         handle.addEventListener("pointerdown", onDragStart);
@@ -560,6 +612,17 @@
         shadow.appendChild(style);
         shadow.appendChild(hud);
         shadow.appendChild(logPanel);
+
+        tipEl = document.createElement("div");
+        tipEl.className = "tip";
+        tipEl.setAttribute("role", "tooltip");
+        if (supportsPopover) tipEl.setAttribute("popover", "manual");
+        shadow.appendChild(tipEl);
+        [hud, logPanel].forEach(function(node) {
+            node.addEventListener("pointerover", onTipOver);
+            node.addEventListener("pointerout", onTipOut);
+            node.addEventListener("pointerdown", hideTip);
+        });
 
         document.addEventListener("keydown", onKeyDown, true);
         window.addEventListener("resize", applyPosition);
@@ -706,11 +769,11 @@
         var counts = countsFor(redirect.id);
         var item = document.createElement("span");
         item.className = "item" + (redirect.on ? "" : " is-off") + (redirect.error ? " has-error" : "");
-        item.title = redirect.error
+        item.setAttribute("data-tip", redirect.error
             ? redirect.name + ": not applied. " + redirect.error
             : redirect.name + (redirect.port ? " → :" + redirect.port : "") + (redirect.on ? "" : " (off)") +
                 (counts.total ? " · " + counts.total + " request" + (counts.total === 1 ? "" : "s") + " on this page" +
-                    (counts.failed ? ", " + counts.failed + " failed" : "") : "");
+                    (counts.failed ? ", " + counts.failed + " failed" : "") : ""));
 
         if (state.hudShowSwitches) item.appendChild(renderSwitch(redirect));
 
@@ -727,7 +790,7 @@
             port.textContent = redirect.port ? ":" + redirect.port : "+port";
             if (canEdit) {
                 port.type = "button";
-                port.title = redirect.port ? "Click to change the port" : "Add a port to the destination URL";
+                port.setAttribute("data-tip", redirect.port ? "Click to change the port" : "Add a port to the destination URL");
                 port.addEventListener("click", function(e) {
                     startPortEdit(redirect, port, e);
                 });
@@ -742,7 +805,7 @@
             countsEl.className = "counts" + (logRuleId === redirect.id ? " is-open" : "");
             countsEl.setAttribute("data-rule-id", String(redirect.id));
             // No item tooltip over the log it opens.
-            countsEl.title = "";
+            countsEl.setAttribute("data-tip", "");
             var count = document.createElement("span");
             count.className = "count";
             count.textContent = "×" + counts.total;
@@ -791,6 +854,7 @@
         }
 
         ensureHud();
+        hideTip();
         list.textContent = "";
         hud.style.opacity = String(state.hudOpacity);
 

@@ -10,7 +10,7 @@
           <span class="text-xs font-bold uppercase tracking-wider" :class="isExtensionOn ? 'text-primary-600' : 'text-slate-400'">
             {{ isExtensionOn ? 'Active' : 'Disabled' }}
           </span>
-          <USwitch :model-value="isExtensionOn" @update:model-value="toggleExtension" color="success" size="lg" />
+          <USwitch :model-value="isExtensionOn" @update:model-value="toggleExtension" color="success" size="lg" :ui="{ base: 'data-[state=unchecked]:bg-slate-400' }" />
       </div>
   </div>
 </template>

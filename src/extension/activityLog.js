@@ -3,6 +3,7 @@
 // (src/sidepanel/ActivityLog.vue): redirects and file overrides (webRequest
 // onBeforeRedirect), the header rules that applied to a request, and file injections
 // (reported by src/inject/scriptInjector.js).
+// It also drives the toolbar icon's badge: how many rules did something on each tab's page.
 // The log is kept in chrome.storage.session: it survives the service worker being
 // stopped, and is gone when the browser closes.
 import { compileRules, attributeRedirect, matchHeaderRules, describeHeaderChanges, statusBucket } from '../lib/activity.js';
@@ -10,6 +11,8 @@ import { getRuleSummary, getRuleDisplayName } from '../lib/ruleLabels.js';
 import { getSiteLists, siteIsEnabled } from './urlPattern.js';
 
 const LOG_KEY = 'activityLog';
+// When each tab's current page started loading, by tab id; the badge counts from there.
+const PAGE_STARTS_KEY = 'badgePageStarts';
 // Off while the user has paused recording in the Activity view.
 const RECORDING_KEY = 'activityRecording';
 const MAX_ENTRIES = 1000;
@@ -25,10 +28,12 @@ let flushTimer = null;
 let nextId = Date.now();
 // Redirected requests waiting for their final status, by webRequest requestId.
 const pending = new Map();
+let pageStarts = {};
 
 const ready = Promise.all([
-  chrome.storage.session.get(LOG_KEY).then(result => {
+  chrome.storage.session.get([LOG_KEY, PAGE_STARTS_KEY]).then(result => {
     log = (result[LOG_KEY] || []).concat(log);
+    pageStarts = { ...result[PAGE_STARTS_KEY], ...pageStarts };
   }),
   chrome.storage.local.get(RECORDING_KEY).then(result => {
     isRecording = result[RECORDING_KEY] !== false;
@@ -53,6 +58,7 @@ const addEntry = (entry) => {
   log.push(entry);
   if (log.length > MAX_ENTRIES) log.splice(0, log.length - MAX_ENTRIES);
   scheduleFlush();
+  updateBadges(entry);
   return entry;
 };
 
@@ -73,17 +79,101 @@ const originOf = (url) => {
 const isForPage = (entry, tabId, origin) =>
   entry.tabId === tabId || (entry.tabId < 0 && !!entry.initiator && entry.initiator === origin);
 
+// The tabs an entry belongs to: its own, or every tab of the site for a service worker's.
+const tabsOf = async (entry) => {
+  if (entry.tabId >= 0) return [entry.tabId];
+  if (!entry.initiator) return [];
+  const tabs = await chrome.tabs.query({});
+  return tabs.filter(tab => originOf(tab.url) === entry.initiator).map(tab => tab.id);
+};
+
 const notifyHud = async (entry) => {
   if (entry.type !== 'redirect') return;
   const message = { action: 'hudActivity', entry: hudSummary(entry) };
-  let tabIds = [entry.tabId];
-  if (!(entry.tabId >= 0)) {
-    if (!entry.initiator) return;
-    const tabs = await chrome.tabs.query({});
-    tabIds = tabs.filter(tab => originOf(tab.url) === entry.initiator).map(tab => tab.id);
-  }
-  tabIds.forEach(tabId => chrome.tabs.sendMessage(tabId, message, { frameId: 0 }).catch(() => {}));
+  (await tabsOf(entry)).forEach(tabId => chrome.tabs.sendMessage(tabId, message, { frameId: 0 }).catch(() => {}));
 };
+
+/*
+ * Toolbar badge: the number of rules that did something on the tab's current page
+ * (redirected, served a file, changed headers, injected), green, or red when one of them
+ * failed. The tooltip names them. It starts over when the tab loads a new page.
+ */
+const BADGE_OK_COLOR = '#16a34a';
+const BADGE_FAILED_COLOR = '#dc2626';
+const DEFAULT_TITLE = 'Resourced';
+const badgeTimers = new Map();
+
+const renderBadge = async (tabId) => {
+  let tab;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch (e) {
+    return; // Closed meanwhile.
+  }
+  const origin = originOf(tab.url);
+  const since = pageStarts[tabId] || 0;
+  const rules = new Map();
+  log.forEach(entry => {
+    if (entry.time < since || !isForPage(entry, tabId, origin)) return;
+    const rule = rules.get(entry.ruleId) || { name: entry.ruleName, failed: false };
+    if (statusBucket(entry) === 'error') rule.failed = true;
+    rules.set(entry.ruleId, rule);
+  });
+  const failed = [...rules.values()].filter(rule => rule.failed).length;
+  const names = [...rules.values()].map(rule => rule.name + (rule.failed ? ' (failed)' : '')).join(', ');
+  chrome.action.setBadgeText({ tabId, text: rules.size > 0 ? String(rules.size) : '' }).catch(() => {});
+  chrome.action.setBadgeBackgroundColor({ tabId, color: failed > 0 ? BADGE_FAILED_COLOR : BADGE_OK_COLOR }).catch(() => {});
+  chrome.action.setBadgeTextColor({ tabId, color: '#ffffff' }).catch(() => {});
+  chrome.action.setTitle({
+    tabId,
+    title: rules.size === 0 ? DEFAULT_TITLE
+      : `${DEFAULT_TITLE}: ${rules.size} rule${rules.size === 1 ? '' : 's'} active on this page${failed ? `, ${failed} failing` : ''}\n${names}`
+  }).catch(() => {});
+};
+
+// Requests come in bursts; one update per tab is enough.
+const scheduleBadge = (tabId) => {
+  if (badgeTimers.has(tabId)) return;
+  badgeTimers.set(tabId, setTimeout(() => {
+    badgeTimers.delete(tabId);
+    renderBadge(tabId);
+  }, 150));
+};
+
+const updateBadges = async (entry) => {
+  (await tabsOf(entry)).forEach(scheduleBadge);
+};
+
+const clearBadges = async (title = DEFAULT_TITLE) => {
+  const tabs = await chrome.tabs.query({});
+  tabs.forEach(tab => {
+    chrome.action.setBadgeText({ tabId: tab.id, text: '' }).catch(() => {});
+    chrome.action.setTitle({ tabId: tab.id, title }).catch(() => {});
+  });
+};
+
+// A new page in a tab starts its count over.
+chrome.webRequest.onBeforeRequest.addListener((details) => {
+  if (details.tabId < 0) return;
+  ready.then(() => {
+    pageStarts[details.tabId] = details.timeStamp;
+    chrome.storage.session.set({ [PAGE_STARTS_KEY]: pageStarts }).catch(() => {});
+    renderBadge(details.tabId);
+  });
+}, { urls: ['<all_urls>'], types: ['main_frame'] });
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  ready.then(() => {
+    delete pageStarts[tabId];
+    chrome.storage.session.set({ [PAGE_STARTS_KEY]: pageStarts }).catch(() => {});
+  });
+});
+
+// Pausing every rule clears the badges; the title matches src/extension/action.js.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes.isExtensionOn) return;
+  clearBadges(changes.isExtensionOn.newValue === 'false' ? `${DEFAULT_TITLE} (paused)` : DEFAULT_TITLE);
+});
 
 const shortUrl = (url) => (url && url.length > MAX_URL_LENGTH ? url.slice(0, MAX_URL_LENGTH) + '…' : url);
 
@@ -175,6 +265,8 @@ const finish = async (details, error) => {
     }
     scheduleFlush();
     notifyHud(entry);
+    // A failure turns the badge red.
+    updateBadges(entry);
   }
 
   if (!isRecording) return;
@@ -230,6 +322,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     log = [];
     pending.clear();
     flush();
+    clearBadges();
     sendResponse();
   }
 });

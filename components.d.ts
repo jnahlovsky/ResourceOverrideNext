@@ -22,6 +22,7 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     RuleCard: typeof import('./src/components/RuleCard.vue')['default']
+    RuleControls: typeof import('./src/components/RuleControls.vue')['default']
     SettingsModal: typeof import('./src/components/SettingsModal.vue')['default']
     TestRulesModal: typeof import('./src/components/TestRulesModal.vue')['default']
     UApp: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/App.vue')['default']

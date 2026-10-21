@@ -74,7 +74,7 @@
           color="success"
           size="sm"
           class="shrink-0"
-          :ui="{ inactive: 'bg-slate-400' }"
+          :ui="{ base: 'data-[state=unchecked]:bg-slate-400' }"
           :aria-label="isExtensionOn ? 'Pause all rules' : 'Resume all rules'"
         />
       </header>
@@ -155,22 +155,28 @@
                 class="space-y-1"
               >
                 <template #item="{ element: rule }">
-                  <li class="group bg-white rounded-md border shadow-xs transition-colors" :class="isExpanded(rule) ? 'border-slate-300' : 'border-slate-200'">
+                  <li class="group bg-white rounded-md border shadow-xs overflow-hidden transition-colors" :class="isExpanded(rule) ? 'border-slate-300' : 'border-slate-200'">
                     <!-- One line per rule; clicking it opens the rule's full fields below it, one
                          at a time, unless "open every rule" is on. -->
                     <div
-                      class="flex items-center gap-1.5 pl-1 pr-2 py-1.5 transition-opacity"
-                      :class="[!isExpandAll && 'cursor-pointer', (!rule.on || !isExtensionOn) && 'opacity-60']"
+                      class="flex items-center gap-1.5 pl-1 pr-2 py-1.5 transition-[opacity,background-color]"
+                      :class="[
+                        !isExpandAll && 'cursor-pointer',
+                        // An open card's one-line header has the editor cards' grey and their
+                        // filter / syntax controls; the fields follow on white (RuleCard bare).
+                        isExpanded(rule) && 'bg-slate-200'
+                      ]"
                       :title="`${getRuleDisplayName(rule)} · ${getRuleSummary(rule)}`"
                       @click="toggleExpanded(rule)"
                     >
                       <UIcon
                         name="i-lucide-grip-vertical"
-                        class="drag-handle shrink-0 w-4 h-4 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing"
+                        class="drag-handle shrink-0 w-4 h-4 text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing"
                         title="Drag to reorder"
                         @click.stop
                       />
-                      <div class="min-w-0 flex-1">
+                      <!-- Switched-off rules fade their name, not the switch, which stays easy to see. -->
+                      <div class="min-w-0 flex-1 transition-opacity" :class="(!rule.on || !isExtensionOn) && 'opacity-50'">
                         <!-- Name and port are editable in place: click, type, Enter (Esc cancels). -->
                         <div class="flex items-center gap-1.5 min-w-0">
                           <input
@@ -179,7 +185,7 @@
                             data-inline-edit
                             :placeholder="getRuleDisplayName(rule)"
                             aria-label="Rule name"
-                            class="min-w-0 flex-1 text-[12px] font-semibold leading-5 text-slate-800 bg-white border border-primary-300 rounded px-1 -mx-1 outline-none"
+                            class="min-w-0 flex-1 text-[13px] font-semibold leading-5 text-slate-800 bg-white border border-primary-300 rounded px-1 -mx-1 outline-none"
                             @click.stop
                             @blur="commitEdit"
                             @keydown.enter.prevent="commitEdit"
@@ -188,11 +194,17 @@
                           <button
                             v-else
                             type="button"
-                            class="min-w-0 truncate text-left cursor-text text-[12px] font-semibold leading-5 text-slate-800 hover:text-slate-950"
+                            class="min-w-0 truncate text-left cursor-text text-[13px] font-semibold leading-5 text-slate-800 hover:text-slate-950"
                             title="Click to rename"
                             @click.stop="startEdit(rule, 'name')"
                           >{{ getRuleDisplayName(rule) }}</button>
 
+                          <UIcon
+                            v-if="!isExpanded(rule) && hasActiveDomainFilters(rule)"
+                            name="i-lucide-funnel"
+                            class="shrink-0 w-3 h-3 text-slate-500"
+                            title="Domain filters active"
+                          />
                           <UIcon
                             v-if="rule.on && ruleErrors[rule.id]"
                             name="i-lucide-triangle-alert"
@@ -238,6 +250,12 @@
                           </template>
                         </div>
                       </div>
+                      <RuleControls
+                        v-if="isExpanded(rule)"
+                        class="shrink-0"
+                        :rule="rule"
+                        @update-options="(patch) => updateRuleOptions(rule, patch)"
+                      />
                       <USwitch
                         :model-value="rule.on"
                         @update:model-value="(on) => toggleRule(rule, on)"
@@ -245,12 +263,13 @@
                         color="success"
                         size="sm"
                         class="shrink-0"
-                        :ui="{ inactive: 'bg-slate-400' }"
+                        :ui="{ base: 'data-[state=unchecked]:bg-slate-400' }"
                         :aria-label="`Toggle ${getRuleDisplayName(rule)}`"
                       />
                       <button
                         type="button"
-                        class="shrink-0 -mr-1 flex items-center justify-center w-5 h-5 rounded text-slate-400 enabled:hover:text-slate-700 enabled:hover:bg-slate-100 disabled:opacity-40"
+                        class="shrink-0 -mr-1 flex items-center justify-center w-6 h-6 rounded-md text-slate-500 enabled:hover:text-slate-700 disabled:opacity-40 transition-colors"
+                        :class="isExpanded(rule) ? 'enabled:hover:bg-slate-300' : 'enabled:hover:bg-slate-100'"
                         :disabled="isExpandAll"
                         :aria-expanded="isExpanded(rule)"
                         :aria-label="`${isExpanded(rule) ? 'Hide' : 'Show'} the fields of ${getRuleDisplayName(rule)}`"
@@ -261,7 +280,7 @@
                       </button>
                     </div>
 
-                    <div v-if="isExpanded(rule)" class="border-t border-slate-200 px-2 pt-1.5 pb-2">
+                    <div v-if="isExpanded(rule)">
                       <component
                         :is="RULE_EDITORS[rule.type]"
                         :rule="rule"
@@ -307,9 +326,10 @@ import FileInjectRule from '../components/FileInjectRule.vue';
 import { useRules } from '../composables/useRules';
 import { useRuleErrors } from '../composables/useRuleErrors.js';
 import ActivityLog from './ActivityLog.vue';
+import RuleControls from '../components/RuleControls.vue';
 import { validateRule } from '../lib/ruleValidation.js';
 import { RULE_GROUPS, getRuleDisplayName, getRuleSummary, getRulePort, canEditRulePort } from '../lib/ruleLabels.js';
-import { setTargetPort, parsePortInput } from '../extension/urlPattern.js';
+import { setTargetPort, parsePortInput, getDomainFilters } from '../extension/urlPattern.js';
 
 // Also the toolbar popup (popup.html): both are for quick on/off, the editor is for edits.
 const props = defineProps({
@@ -320,6 +340,10 @@ const isSidePanel = props.context === 'sidepanel';
 const { globalDomain, isLoading, fetchDomains, saveDomain } = useRules();
 const { ruleErrors } = useRuleErrors();
 const ruleIssues = (rule) => validateRule(rule);
+const hasActiveDomainFilters = (rule) => {
+  const { include, exclude } = getDomainFilters(rule);
+  return include.length > 0 || exclude.length > 0;
+};
 
 const hasChrome = typeof chrome !== 'undefined' && !!chrome.runtime;
 
@@ -368,6 +392,22 @@ const toggleExpandAll = () => {
   }
 };
 
+// The popup is as wide as Chrome allows while every rule is open, for room to edit, and
+// the narrow list otherwise. Its size follows the page, so animating the page's width
+// animates the popup. Opening it already wide doesn't animate. The width is on <html>, so
+// a page scrollbar (on screens too short for the whole popup) narrows the content instead
+// of pushing it past the edge.
+const POPUP_WIDTH = 360;
+const POPUP_WIDE_WIDTH = 800; // Chrome's maximum popup width
+if (!isSidePanel) {
+  const page = document.documentElement;
+  page.style.width = `${isExpandAll.value ? POPUP_WIDE_WIDTH : POPUP_WIDTH}px`;
+  watch(isExpandAll, (wide) => {
+    page.style.transition = 'width 240ms cubic-bezier(0.2, 0, 0, 1)';
+    page.style.width = `${wide ? POPUP_WIDE_WIDTH : POPUP_WIDTH}px`;
+  });
+}
+
 const expandedId = ref(null);
 const isExpanded = (rule) => isExpandAll.value || expandedId.value === rule.id;
 const toggleExpanded = (rule) => {
@@ -377,6 +417,12 @@ const toggleExpanded = (rule) => {
 watch(activeGroup, () => {
   expandedId.value = null;
 });
+
+// The open row's filter / syntax controls; its fields (RuleCard bare) follow the rule.
+const updateRuleOptions = async (rule, patch) => {
+  Object.assign(rule, patch);
+  await saveDomain(globalDomain.value);
+};
 
 const updateRule = async (ruleId, updated) => {
   if (!globalDomain.value) return;

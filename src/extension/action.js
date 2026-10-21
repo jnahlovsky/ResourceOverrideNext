@@ -2,7 +2,7 @@
 {
     bgapp.updateActionState = function(isOn) {
         chrome.action.setTitle({
-            title: isOn ? "Resource Override (ON)" : "Resource Override (OFF)"
+            title: isOn ? "Resourced" : "Resourced (paused)"
         });
         chrome.action.setBadgeText({ text: "" });
         chrome.action.setIcon({

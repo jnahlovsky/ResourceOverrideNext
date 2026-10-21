@@ -38,3 +38,26 @@ input[type="radio"],
 select {
     cursor: pointer;
 }
+/* Custom tooltips (src/lib/tooltips.js) */
+.app-tooltip {
+    position: fixed;
+    z-index: 2147483647;
+    max-width: min(300px, calc(100vw - 12px));
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgb(15 23 42 / 0.94);
+    color: #f8fafc;
+    font: 500 11.5px/16px 'Geist', system-ui, sans-serif;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    box-shadow: 0 6px 18px rgb(15 23 42 / 0.25);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(2px);
+    transition: opacity 80ms ease, transform 80ms ease;
+}
+
+.app-tooltip.is-visible {
+    opacity: 1;
+    transform: none;
+}

@@ -92,7 +92,7 @@
                     <span
                       v-if="settings.hudShowSwitches"
                       class="relative w-6 h-3.5 rounded-full transition-colors"
-                      :class="item.on ? 'bg-[#00c16a]' : 'bg-white/25'"
+                      :class="item.on ? 'bg-[#00c16a]' : 'bg-white/40'"
                     ><span class="absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform" :class="item.on && 'translate-x-2.5'"></span></span>
                     <span>{{ item.name }}</span>
                     <span
@@ -123,7 +123,7 @@
                 :model-value="settings.hudEnabled"
                 @update:model-value="(value) => update('hudEnabled', value)"
                 color="success"
-                :ui="{ inactive: 'bg-slate-400' }"
+                :ui="{ base: 'data-[state=unchecked]:bg-slate-400' }"
               />
             </label>
 
@@ -176,7 +176,7 @@
                 :model-value="settings[option.key]"
                 @update:model-value="(value) => update(option.key, value)"
                 color="success"
-                :ui="{ inactive: 'bg-slate-400' }"
+                :ui="{ base: 'data-[state=unchecked]:bg-slate-400' }"
               />
             </label>
 
@@ -234,7 +234,7 @@
                 @update:model-value="setSidePanelOpen"
                 :disabled="!isSidePanelSupported"
                 color="success"
-                :ui="{ inactive: 'bg-slate-400' }"
+                :ui="{ base: 'data-[state=unchecked]:bg-slate-400' }"
               />
             </label>
           </div>

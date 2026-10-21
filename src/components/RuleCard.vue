@@ -1,33 +1,36 @@
 <template>
-  <!-- `bare`: just the body and the Filter / match syntax controls, for the expanded rows
-       of the popup and side panel, which show the name, port and switch themselves. -->
+  <!-- `bare`: just the fields, for the quick list's open card (popup / side panel), whose
+       own row is the one-line header. -->
   <div class="group relative" :class="!bare && 'mb-2'">
-    <!-- Drag Handle -->
-    <div v-if="!bare" class="absolute -left-5 top-1/2 -translate-y-1/2 w-5 flex justify-center flex-shrink-0 z-10">
-      <UIcon name="i-lucide-grip-vertical" class="drag-handle w-4 h-4 text-slate-400 cursor-grab opacity-0 group-hover:opacity-100 transition-opacity" />
-    </div>
-    
     <div
       class="w-full bg-white transition-colors"
-      :class="bare ? '' : ['rounded-md border border-slate-200 shadow-sm overflow-hidden', !rule.on && 'opacity-70 grayscale-[20%]']"
+      :class="bare ? '' : 'rounded-md border border-slate-200 shadow-sm overflow-hidden'"
     >
-      <!-- Header Area -->
-      <div class="flex items-center" :class="bare ? 'justify-end pb-1.5' : 'justify-between px-2.5 py-1.5 bg-slate-200 rounded-t-md'">
-        <div v-if="!bare" class="flex items-center gap-2">
+      <!-- One-line header: grip, name, port, state icons · filters, syntax · delete · on/off, open/close -->
+      <div v-if="!bare" class="flex items-center gap-2 pl-1 pr-2 py-1.5 bg-slate-200">
+        <UIcon
+          name="i-lucide-grip-vertical"
+          class="drag-handle shrink-0 w-4 h-4 text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing"
+          title="Drag to reorder"
+        />
+        <!-- Switched-off rules fade their name and fields, not the controls. -->
+        <div class="flex items-center gap-2 min-w-0 flex-1 transition-opacity" :class="!rule.on && 'opacity-50'">
           <!-- Title / Editor -->
           <input 
             v-if="isEditingTitle" 
             v-model="editableTitle" 
             @blur="saveTitle" 
             @keyup.enter="saveTitle"
-            class="text-[11px] font-bold tracking-wider uppercase text-slate-700 bg-white border border-primary-300 rounded px-1 outline-none w-32"
+            :placeholder="ruleTitle"
+            aria-label="Rule name"
+            class="min-w-0 w-56 text-[13px] font-semibold leading-5 text-slate-800 bg-white border border-primary-300 rounded px-1 -mx-1 outline-none"
             ref="titleInput"
           />
           <button
             v-else
             type="button"
             @click="startEditingTitle"
-            class="cursor-text text-[11px] font-bold tracking-wider uppercase text-slate-500 hover:text-slate-700 transition-colors"
+            class="min-w-0 truncate text-left cursor-text text-[13px] font-semibold leading-5 text-slate-800 hover:text-slate-950 transition-colors"
             title="Click to rename"
           >
             {{ rule.name || ruleTitle }}
@@ -46,110 +49,72 @@
               maxlength="5"
               placeholder="port"
               aria-label="Destination port"
-              class="font-mono text-[10px] font-semibold leading-4 w-[7ch] px-1 rounded bg-white border border-primary-300 text-primary-700 outline-none"
+              class="shrink-0 font-mono text-[10px] font-semibold leading-4 w-[7ch] px-1 rounded bg-white border border-primary-300 text-primary-700 outline-none"
             />
             <button
               v-else-if="targetPort"
               type="button"
               @click="startEditingPort"
-              class="cursor-text font-mono text-[10px] font-semibold leading-4 px-1.5 rounded bg-primary-100 text-primary-700 hover:bg-primary-200 transition-colors"
+              class="shrink-0 cursor-text font-mono text-[10px] font-semibold leading-4 px-1.5 rounded bg-primary-100 text-primary-700 hover:bg-primary-200 transition-colors"
               :title="`Redirects to port ${targetPort}. Click to change it.`"
             >:{{ targetPort }}</button>
             <button
               v-else
               type="button"
               @click="startEditingPort"
-              class="cursor-text font-mono text-[10px] font-semibold leading-4 px-1.5 rounded border border-dashed border-slate-400 text-slate-500 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-slate-700 transition-opacity"
+              class="shrink-0 cursor-text font-mono text-[10px] font-semibold leading-4 px-1.5 rounded border border-dashed border-slate-400 text-slate-500 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-slate-700 transition-opacity"
               title="Add a port to the destination URL"
             >+port</button>
           </template>
           <UIcon
-            v-if="hasActiveDomainFilters"
-            name="i-lucide-funnel"
-            class="w-3 h-3 text-slate-500"
-            title="Domain filters active"
-          />
-          <UIcon
             v-if="ruleError"
             name="i-lucide-triangle-alert"
-            class="w-3.5 h-3.5 text-red-500"
+            class="shrink-0 w-3.5 h-3.5 text-red-500"
             :title="`Not applied: ${ruleError}`"
           />
           <UIcon
             v-else-if="issues.length > 0"
             name="i-lucide-circle-alert"
-            class="w-3.5 h-3.5"
+            class="shrink-0 w-3.5 h-3.5"
             :class="hasIssueErrors ? 'text-red-500' : 'text-amber-500'"
             :title="issues.map(issue => issue.message).join('\n')"
           />
         </div>
-        <div class="flex items-center gap-3">
-          <!-- Domain Filters Toggle -->
-          <button
-            type="button"
-            :aria-pressed="!!rule.domainFiltersOn"
-            :title="domainFiltersTitle"
-            @click="emit('update-options', { domainFiltersOn: !rule.domainFiltersOn })"
-            class="h-6 px-2 inline-flex items-center gap-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors"
-            :class="rule.domainFiltersOn
-              ? (bare ? 'bg-slate-200 text-slate-700' : 'bg-white text-slate-700 shadow-sm')
-              : (bare ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-300')"
-          >
-            <UIcon name="i-lucide-funnel" class="w-3 h-3" />
-            Filter
-          </button>
-          <!-- Match Syntax -->
-          <div
-            v-if="hasUrlPattern"
-            role="radiogroup"
-            aria-label="Match syntax"
-            class="flex items-center rounded-md bg-slate-300/70 p-0.5"
-          >
-            <button
-              v-for="option in matchModeOptions"
-              :key="option.value"
-              type="button"
-              role="radio"
-              :aria-checked="matchMode === option.value"
-              :title="option.title"
-              @click="setMatchMode(option.value)"
-              class="h-5 px-2 rounded text-[10px] font-bold uppercase tracking-wider transition-colors"
-              :class="matchMode === option.value ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-            >
-              {{ option.label }}
-            </button>
-          </div>
-          <template v-if="!bare">
-            <div v-if="hasUrlPattern" class="w-px h-4 bg-slate-300"></div>
-            <!-- Collapse Toggle -->
-            <UButton
-              variant="ghost"
-              :icon="rule.isCollapsed ? 'i-lucide-chevron-down' : 'i-lucide-chevron-up'"
-              @click="$emit('update-collapse', !rule.isCollapsed)"
-              class="text-slate-500 hover:text-slate-700 hover:bg-slate-300 rounded-md w-6 h-6 p-0 flex justify-center items-center transition-colors"
-            />
-            <UButton
-              variant="ghost"
-              icon="i-lucide-trash-2"
-              @click="$emit('delete')"
-              class="text-slate-500 hover:text-red-500 hover:bg-slate-300 rounded-md w-6 h-6 p-0 flex justify-center items-center transition-colors"
-            />
-            <div class="w-px h-4 bg-slate-300"></div>
-            <div class="flex items-center gap-2">
-              <USwitch
-                :model-value="rule.on"
-                @update:model-value="$emit('toggle', $event)"
-                size="sm"
-                color="success"
-                :ui="{ inactive: 'bg-slate-400' }"
-              />
-            </div>
-          </template>
-        </div>
+
+        <RuleControls class="shrink-0" :rule="rule" @update-options="(patch) => emit('update-options', patch)" />
+        <div class="shrink-0 w-px h-4 bg-slate-300"></div>
+        <UButton
+          variant="ghost"
+          icon="i-lucide-trash-2"
+          title="Delete rule"
+          @click="$emit('delete')"
+          class="shrink-0 text-slate-500 hover:text-red-500 hover:bg-slate-300 rounded-md w-6 h-6 p-0 flex justify-center items-center transition-colors"
+        />
+        <div class="shrink-0 w-px h-4 bg-slate-300"></div>
+        <USwitch
+          :model-value="rule.on"
+          @update:model-value="$emit('toggle', $event)"
+          size="sm"
+          color="success"
+          class="shrink-0"
+          :ui="{ base: 'data-[state=unchecked]:bg-slate-400' }"
+          :aria-label="rule.on ? 'Switch the rule off' : 'Switch the rule on'"
+        />
+        <!-- Open / close, the same arrow as in the popup and side panel -->
+        <button
+          type="button"
+          class="shrink-0 -mr-0.5 flex items-center justify-center w-6 h-6 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-300 transition-colors"
+          :aria-expanded="!rule.isCollapsed"
+          :title="rule.isCollapsed ? 'Show the fields' : 'Hide the fields'"
+          @click="$emit('update-collapse', !rule.isCollapsed)"
+        >
+          <UIcon name="i-lucide-chevron-down" class="w-4 h-4 transition-transform" :class="!rule.isCollapsed && 'rotate-180'" />
+        </button>
       </div>
 
       <!-- Main Content Area -->
-      <div v-show="bare || !rule.isCollapsed" class="w-full" :class="!bare && 'p-2'">
+      <!-- Bare: roomier, and the fields' own rows spaced a bit wider ([&>div]). -->
+      <div v-show="bare || !rule.isCollapsed" class="w-full transition-opacity" :class="[bare ? 'p-2.5 [&>div]:gap-2' : 'p-2', !bare && !rule.on && 'opacity-60 grayscale-[20%]']">
         <div v-if="ruleError" class="mb-2 flex items-start gap-1.5 rounded-sm bg-red-50 px-2 py-1.5 text-[12px] text-red-700">
           <UIcon name="i-lucide-triangle-alert" class="w-3.5 h-3.5 shrink-0 mt-px" />
           <span><strong class="font-semibold">Chrome rejected this rule, so it isn't applied.</strong> {{ ruleError }}</span>
@@ -200,8 +165,9 @@
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue';
-import { getDomainFilters, getMatchMode, convertMatchMode, getTargetPort, setTargetPort, parsePortInput } from '../extension/urlPattern.js';
+import { getTargetPort, setTargetPort, parsePortInput } from '../extension/urlPattern.js';
 import { canEditRulePort } from '../lib/ruleLabels.js';
+import RuleControls from './RuleControls.vue';
 import { useRuleErrors } from '../composables/useRuleErrors.js';
 import { validateRule } from '../lib/ruleValidation.js';
 
@@ -220,25 +186,6 @@ const emit = defineEmits(['toggle', 'delete', 'update-collapse', 'update-name', 
 
 // File injections run in the page itself, so their filters check the page's domain.
 const domainExample = computed(() => props.rule.type === 'fileInject' ? 'page ' : '');
-
-const domainFiltersTitle = computed(() => props.rule.type === 'fileInject'
-  ? 'Include / exclude page domains'
-  : 'Include / exclude request domains');
-
-// File injections have no URL pattern; every other rule matches request URLs.
-const hasUrlPattern = computed(() => props.rule.type !== 'fileInject');
-const matchMode = computed(() => getMatchMode(props.rule));
-
-const matchModeOptions = [
-  { value: 'wildcard', label: 'Wildcard', title: 'Match with * and **, and reuse them in the destination' },
-  { value: 'regex', label: 'Regex', title: 'Match with a regular expression; use $1, $2… in the destination' }
-];
-
-// Switching syntax also translates the patterns, e.g. */app/** <-> (.*?)\/app\/(.*)
-const setMatchMode = (mode) => {
-  if (mode === matchMode.value) return;
-  emit('update-options', convertMatchMode(props.rule, mode));
-};
 
 const targetPort = computed(() => props.rule.type === 'normalOverride' ? getTargetPort(props.rule.replace) : '');
 
@@ -270,11 +217,6 @@ const { ruleErrors } = useRuleErrors();
 const issues = computed(() => validateRule(props.rule));
 const hasIssueErrors = computed(() => issues.value.some(issue => issue.level === 'error'));
 const ruleError = computed(() => (props.rule.on ? ruleErrors.value[props.rule.id] : '') || '');
-
-const hasActiveDomainFilters = computed(() => {
-  const { include, exclude } = getDomainFilters(props.rule);
-  return include.length > 0 || exclude.length > 0;
-});
 
 const includeDomains = ref(props.rule.includeDomains || '');
 const excludeDomains = ref(props.rule.excludeDomains || '');
