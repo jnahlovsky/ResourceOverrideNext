@@ -30,7 +30,9 @@
         hudSites: "",
         // Settings → Sites: where the extension works at all.
         siteAllowlist: "",
-        siteBlocklist: ""
+        siteBlocklist: "",
+        // A message on the page when a redirect's server fails (shown even without the HUD).
+        failureToasts: true
     };
     // Distance kept from the viewport edges; also the default distance from the top.
     var EDGE_GAP = 10;
@@ -687,7 +689,148 @@
 
     var addActivity = function(entry) {
         // Only this page's requests, not the ones of earlier pages in the tab.
-        if (entry && entry.time >= pageStart - 1) activity[entry.id] = entry;
+        if (!entry || entry.time < pageStart - 1) return;
+        activity[entry.id] = entry;
+        if (entry.failed) toastFailure(entry);
+    };
+
+    /*
+     * Toasts: "Resourced · Server on localhost:8782 is not responding." when a redirect's
+     * destination fails, once per server and page. Separate from the HUD (own element and
+     * shadow root), so they show with the HUD off too.
+     */
+    var TOAST_DURATION_MS = 8000;
+    var toastHost = null;
+    var toastStack = null;
+    var toastedTargets = {};
+    // Failures that arrive before the settings are loaded wait for them.
+    var settingsLoaded = false;
+    var queuedFailures = [];
+
+    var toastCss = [
+        ":host { all: initial !important; }",
+        ".stack { position: fixed; inset: auto; top: 16px; right: 16px; left: auto; bottom: auto; margin: 0; padding: 0; border: 0;",
+        "  background: transparent; overflow: visible; z-index: 2147483647; display: flex; flex-direction: column; gap: 8px;",
+        "  width: min(360px, calc(100vw - 32px)); pointer-events: none; }",
+        ".toast { pointer-events: auto; display: flex; gap: 10px; align-items: flex-start; box-sizing: border-box; padding: 11px 12px;",
+        "  border-radius: 10px; background: rgba(15, 23, 42, 0.96); color: #f8fafc; border-left: 3px solid #f87171;",
+        "  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), inset 0 0 0 1px rgba(255, 255, 255, 0.08);",
+        "  font: 400 12.5px/18px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;",
+        "  transform: translateX(16px); opacity: 0; transition: transform 0.2s ease, opacity 0.2s ease; }",
+        ".toast.is-shown { transform: none; opacity: 1; }",
+        ".icon { flex: none; width: 20px; height: 20px; border-radius: 5px; margin-top: 1px; }",
+        ".text { flex: 1; min-width: 0; }",
+        ".title { display: block; font-weight: 700; font-size: 13px; }",
+        ".message { display: block; color: #fecaca; overflow-wrap: anywhere; }",
+        ".hint { display: block; margin-top: 2px; color: rgba(248, 250, 252, 0.6); font-size: 11.5px; overflow-wrap: anywhere; }",
+        ".close { all: unset; flex: none; cursor: pointer; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;",
+        "  border-radius: 5px; color: rgba(248, 250, 252, 0.55); font-size: 15px; line-height: 1; }",
+        ".close:hover { color: #f8fafc; background: rgba(255, 255, 255, 0.1); }",
+        ".close:focus-visible { outline: 2px solid #00dc82; }"
+    ].join("\n");
+
+    var failureMessage = function(entry) {
+        var host = entry.target || "the destination";
+        var error = entry.error || "";
+        if (/NAME_NOT_RESOLVED/.test(error)) return { message: "Can't find the server " + host + ".", hint: "Check the host name in the redirect." };
+        if (/CERT_/.test(error)) return { message: host + " has an invalid HTTPS certificate.", hint: "Open https://" + host + " once and accept it, or redirect to http://." };
+        if (/CONNECTION_REFUSED|ADDRESS_UNREACHABLE|CONNECTION_RESET|CONNECTION_CLOSED|CONNECTION_FAILED|EMPTY_RESPONSE|TIMED_OUT/.test(error)) {
+            return { message: "Server on " + host + " is not responding.", hint: "Is the local server running?" };
+        }
+        if (error === "net::ERR_FAILED" && entry.resourceType === "xmlhttprequest") {
+            return { message: "A request to " + host + " was blocked.", hint: "Probably CORS: the server has to allow this site." };
+        }
+        return null;
+    };
+
+    var ensureToastStack = function() {
+        if (toastHost && toastHost.isConnected) return;
+        if (!toastHost) {
+            toastHost = document.createElement("resourced-toasts");
+            toastHost.style.setProperty("display", "block", "important");
+            var shadow = toastHost.attachShadow({ mode: "closed" });
+            var style = document.createElement("style");
+            style.textContent = toastCss;
+            toastStack = document.createElement("div");
+            toastStack.className = "stack";
+            toastStack.setAttribute("role", "status");
+            toastStack.setAttribute("aria-live", "polite");
+            if (supportsPopover) toastStack.setAttribute("popover", "manual");
+            shadow.appendChild(style);
+            shadow.appendChild(toastStack);
+        }
+        (document.documentElement || document.body).appendChild(toastHost);
+        if (supportsPopover && !toastStack.matches(":popover-open")) toastStack.showPopover();
+    };
+
+    var showToast = function(text, ruleName) {
+        ensureToastStack();
+        var toast = document.createElement("div");
+        toast.className = "toast";
+        var icon = document.createElement("img");
+        icon.className = "icon";
+        icon.alt = "";
+        icon.src = chrome.runtime.getURL("icons/icon-48x48.png");
+        var body = document.createElement("div");
+        body.className = "text";
+        var title = document.createElement("span");
+        title.className = "title";
+        title.textContent = "Resourced";
+        var message = document.createElement("span");
+        message.className = "message";
+        message.textContent = text.message;
+        var hint = document.createElement("span");
+        hint.className = "hint";
+        hint.textContent = (ruleName ? "Rule \u201c" + ruleName + "\u201d · " : "") + text.hint;
+        body.appendChild(title);
+        body.appendChild(message);
+        body.appendChild(hint);
+        var close = document.createElement("button");
+        close.type = "button";
+        close.className = "close";
+        close.setAttribute("aria-label", "Dismiss");
+        close.textContent = "\u00d7";
+        toast.appendChild(icon);
+        toast.appendChild(body);
+        toast.appendChild(close);
+        toastStack.appendChild(toast);
+        requestAnimationFrame(function() {
+            toast.classList.add("is-shown");
+        });
+
+        var timer = null;
+        var dismiss = function() {
+            clearTimeout(timer);
+            toast.classList.remove("is-shown");
+            setTimeout(function() {
+                toast.remove();
+                if (toastStack.childElementCount === 0 && toastHost) toastHost.remove();
+            }, 220);
+        };
+        var startTimer = function() {
+            timer = setTimeout(dismiss, TOAST_DURATION_MS);
+        };
+        // Stays while the pointer is on it, to be read.
+        toast.addEventListener("mouseenter", function() {
+            clearTimeout(timer);
+        });
+        toast.addEventListener("mouseleave", startTimer);
+        close.addEventListener("click", dismiss);
+        startTimer();
+    };
+
+    var toastFailure = function(entry) {
+        if (!settingsLoaded) {
+            queuedFailures.push(entry);
+            return;
+        }
+        if (!state.failureToasts || isDestroyed) return;
+        if (!siteIsEnabled(state.siteAllowlist, state.siteBlocklist, location.hostname)) return;
+        var text = failureMessage(entry);
+        var key = entry.target + "|" + (text && text.message);
+        if (!text || toastedTargets[key]) return;
+        toastedTargets[key] = true;
+        showToast(text, entry.ruleName);
     };
 
     var visibleRedirects = function() {
@@ -895,6 +1038,7 @@
         document.removeEventListener("pointermove", onLogPointerMove, true);
         window.removeEventListener("resize", applyPosition);
         if (host) host.remove();
+        if (toastHost) toastHost.remove();
     };
     // Registered after the dispatch above, so this copy only hears the next one.
     document.addEventListener(REPLACE_EVENT, destroy);
@@ -928,6 +1072,8 @@
         keys.forEach(function(key) {
             if (result[key] !== undefined) state[key] = result[key];
         });
+        settingsLoaded = true;
+        queuedFailures.splice(0).forEach(toastFailure);
         // Rules registered before the HUD existed were never published; ask for it once.
         if (result.hudRedirects === undefined) {
             chrome.runtime.sendMessage({ action: "updateDNRRules" }).catch(function() {});

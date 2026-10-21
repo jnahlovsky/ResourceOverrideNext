@@ -84,7 +84,25 @@ const addEntry = (entry) => {
 
 // The page HUD (src/inject/hud.js) counts what each redirect did on its page: it's told
 // about every redirect in its tab, and asks for the earlier ones when it starts.
-const hudSummary = (entry) => ({ id: entry.id, ruleId: entry.ruleId, time: entry.time, failed: statusBucket(entry) === 'error' });
+// The destination's host:port, for the page's failure message.
+const targetOf = (url) => {
+  try {
+    return new URL(url).host;
+  } catch (e) {
+    return '';
+  }
+};
+
+const hudSummary = (entry) => ({
+  id: entry.id,
+  ruleId: entry.ruleId,
+  ruleName: entry.ruleName,
+  time: entry.time,
+  failed: statusBucket(entry) === 'error',
+  error: entry.error || '',
+  resourceType: entry.resourceType,
+  target: targetOf(entry.redirectUrl)
+});
 
 const originOf = (url) => {
   try {

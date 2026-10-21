@@ -64,6 +64,25 @@
         </section>
 
         <section>
+          <h4 class="text-lg font-bold text-slate-900 mb-1">Notifications</h4>
+          <p class="text-slate-500 mb-4">Messages on the page, in its top right corner, when something needs your attention.</p>
+          <div class="bg-white rounded-md border border-slate-200">
+            <label class="flex items-center justify-between gap-4 px-4 py-3 cursor-pointer">
+              <span>
+                <span class="block font-semibold text-slate-800">When a redirect's server fails</span>
+                <span class="block text-slate-500 text-[12px]">E.g. "Server on localhost:8782 is not responding." Once per server and page; needs the activity log recording.</span>
+              </span>
+              <USwitch
+                :model-value="settings.failureToasts"
+                @update:model-value="(value) => update('failureToasts', value)"
+                color="success"
+                :ui="{ base: 'data-[state=unchecked]:bg-slate-400' }"
+              />
+            </label>
+          </div>
+        </section>
+
+        <section>
           <h4 class="text-lg font-bold text-slate-900 mb-1">Page HUD</h4>
           <p class="text-slate-500 mb-4">
             A small overlay on every page that lists your URL redirects. Switch them on and off or change a port
@@ -257,7 +276,8 @@ const HUD_DEFAULTS = {
   hudShowCounts: true,
   hudShowSwitches: true,
   hudPortMode: 'edit',
-  hudSites: ''
+  hudSites: '',
+  failureToasts: true
 };
 
 const HUD_TOGGLES = [

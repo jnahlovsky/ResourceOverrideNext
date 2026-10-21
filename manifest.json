@@ -82,6 +82,7 @@
   "web_accessible_resources": [
     {
       "resources": [
+        "icons/icon-48x48.png",
         "icons/icon-disabled-16x16.png",
         "icons/icon-disabled-48x48.png",
         "icons/icon-disabled-128x128.png"
