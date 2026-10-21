@@ -1,12 +1,19 @@
 /* global chrome */
-// Small overlay listing the active URL redirects. It hides while hovered so it never
-// blocks the page, except over its handle, which keeps it visible and drags it.
-// The list is published to storage by updateDNRRules (src/extension/netRequestRules.js);
-// the settings are written by the Settings screen (src/components/SettingsModal.vue).
+// Small overlay listing the URL redirects, each with an on/off switch and its port, which
+// can be changed in place. Its handle drags it out of the way.
+// The list is published to storage by updateDNRRules (src/extension/netRequestRules.js) and
+// changes go back through the background ("hudUpdateRule" in messageListener.js); the
+// settings are written by the Settings screen (src/components/SettingsModal.vue).
 (function() {
     "use strict";
 
     if (window.top !== window) return;
+
+    // After an extension update or reload the background injects this script into open tabs
+    // again (see reinjectHud in src/extension/background.js). A copy already on the page has
+    // lost its connection to the extension and would ignore Settings, so it removes itself.
+    var REPLACE_EVENT = "resourced-hud:replace";
+    document.dispatchEvent(new CustomEvent(REPLACE_EVENT));
 
     // Keep in sync with HUD_DEFAULTS in src/components/SettingsModal.vue.
     var DEFAULTS = { hudEnabled: true, hudOpacity: 0.85, hudPosition: null };
@@ -16,18 +23,19 @@
     var SNAP_DISTANCE = 24;
     // Pointer travel below this is a click on the handle, not a drag.
     var DRAG_THRESHOLD = 3;
-    // How far the cursor has to move away before a hover-hidden HUD comes back.
-    var REVEAL_MARGIN = 16;
-    // Extra room around the handle that still counts as "on the handle".
-    var HANDLE_MARGIN = 6;
 
     var state = { hudEnabled: DEFAULTS.hudEnabled, hudOpacity: DEFAULTS.hudOpacity, hudPosition: null, hudRedirects: [] };
     var host = null;
     var hud = null;
     var handle = null;
     var list = null;
-    var isHidden = false;
     var drag = null;
+    var isDestroyed = false;
+    // Switching off the last redirect from the HUD keeps it on this page, so it can be
+    // switched back on; otherwise the HUD only shows while a redirect is on.
+    var keepVisible = false;
+    // The redirect whose port is being typed; updates wait until it's done.
+    var editingId = null;
 
     // The top layer (popover API) keeps the HUD above every page element, whatever the
     // page's z-indexes, transforms or overflow are.
@@ -42,7 +50,6 @@
         "  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.08);",
         "  font: 500 12px/18px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;",
         "  user-select: none; -webkit-user-select: none; cursor: default; transition: opacity 0.15s ease; }",
-        ".hud.is-hidden { opacity: 0 !important; pointer-events: none; }",
         ".hud.is-dragging { transition: none; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.14); }",
         // The handle is the whole left end of the pill, tinted so it reads as its own part, and
         // there is no gap to cross before reaching it.
@@ -53,14 +60,31 @@
         ".handle:hover { color: #f8fafc; background: rgba(255, 255, 255, 0.16); }",
         ".is-dragging .handle { color: #00dc82; background: rgba(0, 220, 130, 0.16); }",
         ".is-dragging, .is-dragging .handle { cursor: grabbing; }",
-        ".content { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 5px 12px 5px 9px; }",
-        ".dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: #00dc82;",
-        "  box-shadow: 0 0 0 3px rgba(0, 220, 130, 0.25); }",
-        ".list { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; min-width: 0; }",
-        ".item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; min-width: 0; max-width: 100%; }",
-        ".name { min-width: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }",
+        ".content { display: flex; align-items: center; min-width: 0; padding: 5px 12px 5px 10px; }",
+        ".list { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 0; min-width: 0; }",
+        ".item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; min-width: 0; max-width: 100%; }",
+        ".sep { flex: none; width: 1px; height: 14px; margin: 0 10px; background: rgba(255, 255, 255, 0.18); }",
+        ".name { min-width: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; transition: opacity 0.15s ease; }",
+        ".is-off .name, .is-off .port { opacity: 0.5; }",
+        ".has-error .name { color: #fca5a5; text-decoration: underline wavy rgba(252, 165, 165, 0.7); text-underline-offset: 3px; }",
+        "button { all: unset; box-sizing: border-box; }",
+        "button:focus-visible, input:focus-visible { outline: 2px solid #00dc82; outline-offset: 1px; }",
+        // On/off switch, like the ones in the extension's UI.
+        ".switch { flex: none; position: relative; width: 24px; height: 14px; border-radius: 7px; cursor: pointer;",
+        "  background: rgba(255, 255, 255, 0.25); transition: background 0.15s ease; }",
+        ".switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%;",
+        "  background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); transition: transform 0.15s ease; }",
+        ".switch[aria-checked='true'] { background: #00c16a; }",
+        ".switch[aria-checked='true']::after { transform: translateX(10px); }",
         ".port { flex: none; font: 600 11px/16px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 0 5px;",
-        "  border-radius: 6px; background: rgba(0, 220, 130, 0.2); color: #6ee7b7; }"
+        "  border-radius: 6px; background: rgba(0, 220, 130, 0.2); color: #6ee7b7; cursor: text; transition: background 0.15s ease; }",
+        "button.port:hover { background: rgba(0, 220, 130, 0.32); }",
+        ".add-port { background: none; color: rgba(248, 250, 252, 0.6); box-shadow: inset 0 0 0 1px rgba(248, 250, 252, 0.25);",
+        "  opacity: 0.6; transition: opacity 0.15s ease; }",
+        ".item:hover .add-port, .add-port:focus-visible { opacity: 1; }",
+        "button.add-port:hover { background: rgba(255, 255, 255, 0.1); }",
+        "input.port { width: 7ch; border: 0; outline: 0; margin: 0; background: #f8fafc; color: #0f172a;",
+        "  user-select: text; -webkit-user-select: text; }"
     ].join("\n");
 
     // Lucide "move" icon (ISC licence).
@@ -77,27 +101,6 @@
     var viewport = function() {
         var root = document.documentElement;
         return { width: root.clientWidth || window.innerWidth, height: root.clientHeight || window.innerHeight };
-    };
-
-    var contains = function(rect, x, y, margin) {
-        return x >= rect.left - margin && x <= rect.right + margin && y >= rect.top - margin && y <= rect.bottom + margin;
-    };
-
-    var setHidden = function(hidden) {
-        if (isHidden === hidden) return;
-        isHidden = hidden;
-        hud.classList.toggle("is-hidden", hidden);
-    };
-
-    // Hovering the HUD hides it (and lets clicks through); hovering the handle keeps it.
-    // Tracked on the document because a hidden HUD gets no pointer events.
-    var onPointerMove = function(e) {
-        if (!host || !host.isConnected || drag) return;
-        if (!contains(hud.getBoundingClientRect(), e.clientX, e.clientY, isHidden ? REVEAL_MARGIN : 0)) {
-            setHidden(false);
-            return;
-        }
-        setHidden(!contains(handle.getBoundingClientRect(), e.clientX, e.clientY, HANDLE_MARGIN));
     };
 
     /*
@@ -185,7 +188,6 @@
             moved: false
         };
         handle.setPointerCapture(e.pointerId);
-        setHidden(false);
     };
 
     var onDragMove = function(e) {
@@ -245,8 +247,8 @@
 
         hud = document.createElement("div");
         hud.className = "hud";
-        hud.setAttribute("role", "status");
-        hud.setAttribute("aria-label", "Resourced: active redirects");
+        hud.setAttribute("role", "region");
+        hud.setAttribute("aria-label", "Resourced: URL redirects");
         if (supportsPopover) hud.setAttribute("popover", "manual");
 
         handle = document.createElement("span");
@@ -265,25 +267,127 @@
 
         var content = document.createElement("span");
         content.className = "content";
-        var dot = document.createElement("span");
-        dot.className = "dot";
         list = document.createElement("span");
         list.className = "list";
-        content.appendChild(dot);
         content.appendChild(list);
+
+        // Clicks and typing in the HUD are the HUD's own; the page shouldn't react to them
+        // (shortcuts, "click outside" handlers). Its capture listeners still see them.
+        ["click", "pointerdown", "mousedown", "keydown", "keyup", "keypress"].forEach(function(type) {
+            hud.addEventListener(type, function(e) {
+                e.stopPropagation();
+            });
+        });
 
         hud.appendChild(handle);
         hud.appendChild(content);
         shadow.appendChild(style);
         shadow.appendChild(hud);
 
-        document.addEventListener("mousemove", onPointerMove, { capture: true, passive: true });
         document.addEventListener("keydown", onKeyDown, true);
         window.addEventListener("resize", applyPosition);
     };
 
     var shouldShow = function() {
-        return state.hudEnabled && Array.isArray(state.hudRedirects) && state.hudRedirects.length > 0;
+        var redirects = Array.isArray(state.hudRedirects) ? state.hudRedirects : [];
+        return state.hudEnabled && redirects.length > 0 &&
+            (keepVisible || redirects.some(function(redirect) { return redirect.on; }));
+    };
+
+    // Applied here right away; the background saves it and publishes the list again.
+    var updateRule = function(redirect, change) {
+        change.action = "hudUpdateRule";
+        change.ruleId = redirect.id;
+        chrome.runtime.sendMessage(change).catch(function() {});
+    };
+
+    var toggleRedirect = function(redirect, e) {
+        // Only the user can switch rules, not the page's scripts.
+        if (!e.isTrusted) return;
+        redirect.on = !redirect.on;
+        keepVisible = true;
+        render();
+        updateRule(redirect, { on: redirect.on });
+    };
+
+    var startPortEdit = function(redirect, button, e) {
+        if (!e.isTrusted || editingId !== null) return;
+        editingId = redirect.id;
+        var input = document.createElement("input");
+        input.className = "port";
+        input.value = redirect.port;
+        input.placeholder = "port";
+        input.inputMode = "numeric";
+        input.maxLength = 6;
+        input.setAttribute("aria-label", "Destination port");
+        var done = false;
+        var finish = function(save) {
+            if (done) return;
+            done = true;
+            editingId = null;
+            var port = input.value.trim().replace(/^:/, "");
+            // The background checks the range too; this just avoids a round trip for typos.
+            if (save && port !== redirect.port && /^\d{0,5}$/.test(port) && (port === "" || (+port >= 1 && +port <= 65535))) {
+                redirect.port = port;
+                updateRule(redirect, { port: port });
+            }
+            render();
+        };
+        input.addEventListener("keydown", function(ev) {
+            if (ev.key === "Enter") {
+                ev.preventDefault();
+                finish(true);
+            } else if (ev.key === "Escape") {
+                ev.preventDefault();
+                finish(false);
+            }
+        });
+        input.addEventListener("blur", function() {
+            finish(true);
+        });
+        button.replaceWith(input);
+        input.focus();
+        input.select();
+        applyPosition();
+    };
+
+    var renderItem = function(redirect) {
+        var item = document.createElement("span");
+        item.className = "item" + (redirect.on ? "" : " is-off") + (redirect.error ? " has-error" : "");
+        item.title = redirect.error
+            ? redirect.name + ": not applied. " + redirect.error
+            : redirect.name + (redirect.port ? " → :" + redirect.port : "") + (redirect.on ? "" : " (off)");
+
+        var toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "switch";
+        toggle.setAttribute("role", "switch");
+        toggle.setAttribute("aria-checked", String(!!redirect.on));
+        toggle.setAttribute("aria-label", (redirect.on ? "Switch off " : "Switch on ") + redirect.name);
+        toggle.addEventListener("click", function(e) {
+            toggleRedirect(redirect, e);
+        });
+        item.appendChild(toggle);
+
+        var name = document.createElement("span");
+        name.className = "name";
+        name.textContent = redirect.name;
+        item.appendChild(name);
+
+        if (redirect.port || redirect.canEditPort) {
+            var port = document.createElement(redirect.canEditPort ? "button" : "span");
+            port.className = "port" + (redirect.port ? "" : " add-port");
+            port.textContent = redirect.port ? ":" + redirect.port : "+port";
+            if (redirect.canEditPort) {
+                port.type = "button";
+                port.title = redirect.port ? "Click to change the port" : "Add a port to the destination URL";
+                port.addEventListener("click", function(e) {
+                    startPortEdit(redirect, port, e);
+                });
+            }
+            item.appendChild(port);
+        }
+        return item;
     };
 
     var attach = function() {
@@ -293,6 +397,9 @@
     };
 
     var render = function() {
+        if (isDestroyed) return;
+        // Finishing the edit renders whatever changed meanwhile.
+        if (editingId !== null) return;
         if (!shouldShow()) {
             if (host) host.remove();
             return;
@@ -302,21 +409,13 @@
         list.textContent = "";
         hud.style.opacity = String(state.hudOpacity);
 
-        state.hudRedirects.forEach(function(redirect) {
-            var item = document.createElement("span");
-            item.className = "item";
-            item.title = redirect.port ? redirect.name + " → :" + redirect.port : redirect.name;
-            var name = document.createElement("span");
-            name.className = "name";
-            name.textContent = redirect.name;
-            item.appendChild(name);
-            if (redirect.port) {
-                var port = document.createElement("span");
-                port.className = "port";
-                port.textContent = ":" + redirect.port;
-                item.appendChild(port);
+        state.hudRedirects.forEach(function(redirect, index) {
+            if (index > 0) {
+                var sep = document.createElement("span");
+                sep.className = "sep";
+                list.appendChild(sep);
             }
-            list.appendChild(item);
+            list.appendChild(renderItem(redirect));
         });
 
         attach();
@@ -326,12 +425,24 @@
 
     // Some apps (e.g. React hydrating the whole document) drop nodes they didn't render;
     // put the HUD back when that happens.
-    new MutationObserver(function() {
+    var observer = new MutationObserver(function() {
         if (host && !host.isConnected && shouldShow()) {
             attach();
             applyPosition();
         }
-    }).observe(document.documentElement, { childList: true });
+    });
+    observer.observe(document.documentElement, { childList: true });
+
+    var destroy = function() {
+        isDestroyed = true;
+        observer.disconnect();
+        document.removeEventListener(REPLACE_EVENT, destroy);
+        document.removeEventListener("keydown", onKeyDown, true);
+        window.removeEventListener("resize", applyPosition);
+        if (host) host.remove();
+    };
+    // Registered after the dispatch above, so this copy only hears the next one.
+    document.addEventListener(REPLACE_EVENT, destroy);
 
     var keys = ["hudEnabled", "hudOpacity", "hudPosition", "hudRedirects"];
 

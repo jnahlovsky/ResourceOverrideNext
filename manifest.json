@@ -11,8 +11,9 @@
     "default_icon": {
       "16": "icons/icon-16x16.png"
     },
-    "default_popup": "index.html"
+    "default_popup": "popup.html"
   },
+  "options_page": "index.html",
   "devtools_page": "devtools.html",
   "side_panel": {
     "default_path": "sidepanel.html"

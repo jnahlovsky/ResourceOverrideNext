@@ -1,7 +1,7 @@
 <template>
   <div class="bg-linear-to-b to-white px-6 py-4 flex justify-between items-center relative z-10 border-b border-slate-100 transition-colors" :class="isExtensionOn === false ? 'from-slate-200' : 'from-primary-100'">
       <div class="flex flex-1 items-center gap-2.5">
-          <img src="/icons/icon-48x48.png" alt="Resourced Logo" class="w-7 h-7 drop-shadow-sm transition-all" :class="!isExtensionOn && 'grayscale opacity-60'" />
+          <img src="/icons/icon-48x48.png" alt="Resourced Logo" class="w-7 h-7 drop-shadow-sm" :class="[isExtensionOn === false && 'grayscale opacity-60', canAnimate && 'transition-all']" />
           <h1 class="m-0 text-[24px] font-extrabold tracking-tight" :class="isExtensionOn === false ? 'text-slate-400' : 'text-slate-900'">
             Resourced <span class="text-primary-500">v1</span>
           </h1>
@@ -19,6 +19,12 @@
 import { ref, onMounted } from 'vue';
 
 const isExtensionOn = ref(null);
+// Transitions start after the first state is painted, so loading as "off" doesn't animate.
+const canAnimate = ref(false);
+const setInitialState = (on) => {
+    isExtensionOn.value = on;
+    requestAnimationFrame(() => requestAnimationFrame(() => { canAnimate.value = true; }));
+};
 
 onMounted(() => {
     if (typeof chrome !== 'undefined' && chrome.storage) {
@@ -34,10 +40,10 @@ onMounted(() => {
             action: "getSetting",
             setting: "isExtensionOn"
         }, (data) => {
-            isExtensionOn.value = data !== "false";
+            setInitialState(data !== "false");
         });
     } else {
-        isExtensionOn.value = true;
+        setInitialState(true);
     }
 });
 

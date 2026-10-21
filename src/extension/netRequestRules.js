@@ -1,5 +1,6 @@
 /* global bgapp, chrome */
 import { buildUrlMatch, applyDomainFilters, getTargetPort, getTargetHost } from './urlPattern.js';
+import { canEditRulePort } from '../lib/ruleLabels.js';
 
 const RESOURCE_TYPES = [
     "main_frame", "sub_frame", "stylesheet", "script", "image",
@@ -46,15 +47,65 @@ const buildAction = (ruleObj, urlMatch) => {
     return null;
 };
 
-// The page HUD (src/inject/hud.js) reads this list straight from storage.
-const publishHudRedirects = (rules) => {
-    const hudRedirects = rules
-        .filter(rule => rule.type === "normalOverride")
+// The page HUD (src/inject/hud.js) reads this list straight from storage. It lists every
+// complete redirect, also the switched-off ones, so they can be switched on from the page.
+// Empty while the extension is paused, which hides the HUD.
+const publishHudRedirects = (domains, isExtensionOn, errors) => {
+    const hudRedirects = !isExtensionOn ? [] : domains
+        .filter(domainObj => domainObj.on)
+        .flatMap(domainObj => domainObj.rules || [])
+        .filter(rule => rule.type === "normalOverride" && buildUrlMatch(rule))
         .map(rule => ({
+            id: rule.id,
             name: rule.name || getTargetHost(rule.replace) || "URL Redirect",
-            port: getTargetPort(rule.replace)
+            port: getTargetPort(rule.replace),
+            canEditPort: canEditRulePort(rule),
+            on: !!rule.on,
+            error: (rule.on && errors[rule.id]) || ""
         }));
     return chrome.storage.local.set({ hudRedirects });
+};
+
+// Chrome's messages name its own rule id ("Rule with id 3 ...") and DNR keys, which mean
+// nothing in the UI; the common ones get a plain explanation.
+const describeRejection = (err) => {
+    const message = String(err?.message || err).replace(/^Rule with id \d+ /, "");
+    if (message.includes("regexSubstitution")) {
+        return "The destination isn't a valid URL, or uses a group ($1–$9) the pattern doesn't have.";
+    }
+    if (message.includes("redirect.url")) return "The destination isn't a valid URL.";
+    if (message.includes("header name")) return "A header name isn't valid (letters, digits and dashes only).";
+    if (message.includes("Domains")) return "One of the domain filters isn't a valid domain.";
+    return message.charAt(0).toUpperCase() + message.slice(1);
+};
+
+// Chrome rejects the whole update when any one rule is invalid, which would leave every
+// rule unregistered. In that case they are added one at a time, so only the bad ones are
+// left out. Returns the rules that were registered and the errors by rule id.
+const registerRules = async (entries) => {
+    const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+    const removeRuleIds = existingRules.map(r => r.id);
+    const addRules = entries.map(entry => entry.dnrRule);
+    try {
+        await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds, addRules });
+        return { registered: entries.map(entry => entry.ruleObj), errors: {} };
+    } catch (batchError) {
+        console.warn("Some rules were rejected, adding them one by one:", batchError);
+    }
+
+    await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds });
+    const registered = [];
+    const errors = {};
+    for (const { ruleObj, dnrRule } of entries) {
+        try {
+            await chrome.declarativeNetRequest.updateDynamicRules({ addRules: [dnrRule] });
+            registered.push(ruleObj);
+        } catch (err) {
+            errors[ruleObj.id] = describeRejection(err);
+            console.warn("Rule rejected by Chrome:", ruleObj, err);
+        }
+    }
+    return { registered, errors };
 };
 
 export async function updateDNRRules() {
@@ -65,8 +116,8 @@ export async function updateDNRRules() {
 
     try {
         const domains = await globalThis.bgapp.mainStorage.getAll();
-        const addRules = [];
-        const activeRules = [];
+        const entries = [];
+        const skippedErrors = {};
 
         const isExtensionOn = globalThis.bgapp.getSetting("isExtensionOn") !== "false";
 
@@ -88,35 +139,36 @@ export async function updateDNRRules() {
                         const support = await chrome.declarativeNetRequest.isRegexSupported({ regex });
                         if (!support.isSupported) {
                             console.warn(`Skipping rule with unsupported regex (${support.reason}):`, regex);
+                            skippedErrors[ruleObj.id] = support.reason === "memoryLimitExceeded"
+                                ? "The pattern is too complex for Chrome."
+                                : "Chrome can't use this regular expression (RE2 syntax, no lookarounds or backreferences).";
                             continue;
                         }
                     }
 
                     const condition = applyDomainFilters({ ...urlMatch.condition, resourceTypes: RESOURCE_TYPES }, ruleObj);
 
-                    addRules.push({
-                        id: addRules.length + 1,
-                        priority: 100,
-                        action: action,
-                        condition: condition
+                    entries.push({
+                        ruleObj,
+                        dnrRule: {
+                            id: entries.length + 1,
+                            priority: 100,
+                            action: action,
+                            condition: condition
+                        }
                     });
-                    activeRules.push(ruleObj);
                 }
             }
         }
 
-        // Get existing rules to remove them
-        const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
-        const removeRuleIds = existingRules.map(r => r.id);
+        const { registered, errors } = await registerRules(entries);
 
-        await chrome.declarativeNetRequest.updateDynamicRules({
-            removeRuleIds: removeRuleIds,
-            addRules: addRules
-        });
+        // Shown on the rule cards and in the popup / side panel (useRuleErrors).
+        const ruleErrors = { ...skippedErrors, ...errors };
+        await chrome.storage.local.set({ ruleErrors });
+        await publishHudRedirects(domains, isExtensionOn, ruleErrors);
 
-        await publishHudRedirects(activeRules);
-
-        console.log(`DNR rules updated. Added ${addRules.length} rules.`);
+        console.log(`DNR rules updated. Added ${registered.length} of ${entries.length} rules.`);
     } catch (e) {
         console.error("Error updating DNR rules:", e);
     }

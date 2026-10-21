@@ -15,9 +15,24 @@ globalThis.bgapp.updateDNRRules = updateDNRRules;
 // `npm run watch` only; null in other builds.
 if (__DEV_RELOAD__) connectDevReload(__DEV_RELOAD__);
 
-chrome.runtime.onInstalled.addListener(() => {
+// Chrome doesn't run content scripts in tabs that were already open when the extension
+// is installed, updated or reloaded. Those tabs would have no HUD, or an old one cut off
+// from the extension that ignores Settings (e.g. "Reset to top center").
+const reinjectHud = async () => {
+    const hudScript = chrome.runtime.getManifest().content_scripts
+        ?.flatMap(script => script.js || [])
+        .find(file => file.includes('hud'));
+    if (!hudScript) return;
+    const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
+    tabs.forEach(tab => {
+        chrome.scripting.executeScript({ target: { tabId: tab.id }, files: [hudScript] }).catch(() => {});
+    });
+};
+
+chrome.runtime.onInstalled.addListener(({ reason }) => {
     console.log("Resource Override MV3 Service Worker installed.");
     updateDNRRules();
+    if (reason === 'install' || reason === 'update') reinjectHud();
 
     chrome.contextMenus.create({
         id: "open_in_tab",

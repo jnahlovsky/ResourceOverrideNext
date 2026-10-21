@@ -57,7 +57,7 @@
         <ul class="list-disc pl-5 space-y-2">
           <li><strong>Live Editing:</strong> To develop locally without constantly pasting code into the extension, run a local server (e.g., <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">npx serve</code>) and use a <strong>URL Redirect</strong> rule to point the production file to your localhost.</li>
           <li><strong>Domain Filters:</strong> Enable <em>Domain filters</em> in a card's <strong>⋮</strong> menu to limit a rule to some request domains or exclude others (comma separated, subdomains included), e.g. exclude <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">localhost</code> so a redirect never re-applies to its own destination.</li>
-          <li><strong>Page HUD:</strong> Active redirects are listed in a small overlay at the top of each page; hover it to hide it. Turn it off or change its opacity in <strong>Settings</strong>.</li>
+          <li><strong>Page HUD:</strong> Your redirects are listed in a small overlay at the top of each page, where you can switch them on and off and click a port to change it; drag it by its grip to move it out of the way. Turn it off or change its opacity in <strong>Settings</strong>.</li>
           <li><strong>Master Switch:</strong> Use the toggle in the top right of the header to quickly disable all rules at once without deleting them.</li>
         </ul>
       </section>

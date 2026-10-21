@@ -1,4 +1,6 @@
 /* global bgapp, chrome, match */
+import { parsePortInput, setTargetPort } from './urlPattern.js';
+
 {
     bgapp.ruleDomains = bgapp.ruleDomains || {};
 
@@ -13,8 +15,29 @@
         chrome.runtime.sendMessage({ action: "dataUpdated" }).catch(() => {});
     };
 
+    // The page HUD can switch a redirect on or off and change its port; nothing else.
+    const updateRuleFromHud = async function({ ruleId, on, port }) {
+        const domains = await bgapp.mainStorage.getAll();
+        const domain = domains.find(d => (d.rules || []).some(r => r.id === ruleId));
+        if (!domain) return;
+        const rule = domain.rules.find(r => r.id === ruleId);
+        if (rule.type !== "normalOverride") return;
+        if (typeof on === "boolean") rule.on = on;
+        if (typeof port === "string") {
+            const parsed = parsePortInput(port);
+            if (parsed === null) return;
+            rule.replace = setTargetPort(rule.replace, parsed);
+        }
+        await bgapp.mainStorage.put(domain);
+        bgapp.ruleDomains[domain.id] = domain;
+        syncAllInstances();
+    };
+
     chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-        if (request.action === "saveDomain") {
+        if (request.action === "hudUpdateRule") {
+            updateRuleFromHud(request).then(() => sendResponse()).catch(simpleError);
+            return true; // async
+        } else if (request.action === "saveDomain") {
             bgapp.mainStorage.put(request.data)
                 .then(syncAllInstances)
                 .catch(simpleError);

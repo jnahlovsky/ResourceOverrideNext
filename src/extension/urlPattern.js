@@ -94,8 +94,19 @@ function mapDestinationStars(replace, groupsByLength, toRef, escapeLiteral) {
 export function wildcardToRegexSubstitution(match, replace) {
     if (!match || !replace) return null;
 
-    const { regex, groupsByLength, groupCount } = wildcardToRegex(match);
+    const { regex: unanchored, groupsByLength, groupCount } = wildcardToRegex(match);
     if (groupCount === 0 || groupCount > MAX_CAPTURE_GROUPS) return null;
+
+    // Chrome replaces only the part of the URL the regex matched, so the regex has to
+    // start at the beginning of the URL, or e.g. "example.com/**" would keep the
+    // "https://" in front of the destination. Like urlFilter, the pattern itself may
+    // still start anywhere in the URL.
+    let regex = unanchored;
+    if (match.charAt(0) === "*") {
+        regex = "^" + regex;
+    } else if (!regex.startsWith("^")) {
+        regex = "^.*?" + regex;
+    }
 
     const { result, usedGroups } = mapDestinationStars(
         replace, groupsByLength, group => "\\" + group, part => part.replace(/\\/g, "\\\\")
@@ -212,18 +223,20 @@ export function buildUrlMatch(rule) {
 }
 
 /**
- * Applies a DNR regexFilter/regexSubstitution pair the way Chrome does: the whole URL
- * is replaced by the substitution. Returns null if the filter does not match.
+ * Applies a DNR regexFilter/regexSubstitution pair the way Chrome does: the first match
+ * of the filter is replaced by the substitution, the rest of the URL is kept.
+ * Returns null if the filter does not match.
  */
 export function applyRegexSubstitution(regexFilter, regexSubstitution, url) {
     let m;
     try {
-        m = url.match(new RegExp(regexFilter, "i"));
+        m = new RegExp(regexFilter, "i").exec(url);
     } catch (e) {
         return null;
     }
     if (!m) return null;
-    return regexSubstitution.replace(/\\(\\|[0-9])/g, (_, ref) => ref === "\\" ? "\\" : (m[Number(ref)] ?? ""));
+    const substituted = regexSubstitution.replace(/\\(\\|[0-9])/g, (_, ref) => ref === "\\" ? "\\" : (m[Number(ref)] ?? ""));
+    return url.substring(0, m.index) + substituted + url.substring(m.index + m[0].length);
 }
 
 /**
@@ -264,6 +277,13 @@ export function setTargetPort(url, port) {
     const m = /^([a-z][a-z0-9+.-]*:\/\/(?:[^\/?#@]*@)?(?:\[[^\]]*\]|[^\/?#:]+))(?::\d*)?/i.exec(url || "");
     if (!m) return url;
     return m[1] + (port ? ":" + port : "") + url.substring(m[0].length);
+}
+
+// A port typed by the user ("3000" or ":3000"): "" clears the port, null means it isn't valid.
+export function parsePortInput(value) {
+    const port = String(value || "").trim().replace(/^:/, "");
+    if (port === "") return "";
+    return /^\d{1,5}$/.test(port) && Number(port) >= 1 && Number(port) <= 65535 ? port : null;
 }
 
 // The host of a redirect destination, e.g. "localhost" for https://localhost:8082/x.

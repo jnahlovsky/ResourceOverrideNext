@@ -1,4 +1,4 @@
-import { getTargetHost, getTargetPort } from '../extension/urlPattern.js';
+import { getTargetHost, getTargetPort, setTargetPort } from '../extension/urlPattern.js';
 
 export const RULE_GROUPS = [
   { value: 'redirects', label: 'URL Redirects', icon: 'i-lucide-shuffle', types: ['normalOverride'] },
@@ -39,4 +39,9 @@ export function getRuleSummary(rule) {
 
 export function getRulePort(rule) {
   return rule.type === 'normalOverride' ? getTargetPort(rule.replace) : '';
+}
+
+// Only redirects to an absolute URL have a port to show or change.
+export function canEditRulePort(rule) {
+  return rule.type === 'normalOverride' && setTargetPort(rule.replace, '1') !== rule.replace;
 }

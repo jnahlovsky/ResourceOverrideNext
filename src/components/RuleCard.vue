@@ -64,6 +64,12 @@
             class="w-3 h-3 text-slate-500"
             title="Domain filters active"
           />
+          <UIcon
+            v-if="ruleError"
+            name="i-lucide-triangle-alert"
+            class="w-3.5 h-3.5 text-red-500"
+            :title="`Not applied: ${ruleError}`"
+          />
         </div>
         <div class="flex items-center gap-3">
           <!-- Domain Filters Toggle -->
@@ -128,6 +134,10 @@
 
       <!-- Main Content Area -->
       <div v-show="!rule.isCollapsed" class="p-2 w-full">
+        <div v-if="ruleError" class="mb-2 flex items-start gap-1.5 rounded-sm bg-red-50 px-2 py-1.5 text-[12px] text-red-700">
+          <UIcon name="i-lucide-triangle-alert" class="w-3.5 h-3.5 shrink-0 mt-px" />
+          <span><strong class="font-semibold">Chrome rejected this rule, so it isn't applied.</strong> {{ ruleError }}</span>
+        </div>
         <slot></slot>
 
         <!-- Domain Filters -->
@@ -162,7 +172,9 @@
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue';
-import { getDomainFilters, getMatchMode, convertMatchMode, getTargetPort, setTargetPort } from '../extension/urlPattern.js';
+import { getDomainFilters, getMatchMode, convertMatchMode, getTargetPort, setTargetPort, parsePortInput } from '../extension/urlPattern.js';
+import { canEditRulePort } from '../lib/ruleLabels.js';
+import { useRuleErrors } from '../composables/useRuleErrors.js';
 
 const props = defineProps({
   rule: {
@@ -197,10 +209,7 @@ const setMatchMode = (mode) => {
 
 const targetPort = computed(() => props.rule.type === 'normalOverride' ? getTargetPort(props.rule.replace) : '');
 
-// Only redirects to an absolute URL have a port to show or change.
-const canEditPort = computed(() =>
-  props.rule.type === 'normalOverride' && setTargetPort(props.rule.replace, '1') !== props.rule.replace
-);
+const canEditPort = computed(() => canEditRulePort(props.rule));
 
 const isEditingPort = ref(false);
 const editablePort = ref('');
@@ -217,11 +226,13 @@ const startEditingPort = () => {
 const savePort = () => {
   if (!isEditingPort.value) return;
   isEditingPort.value = false;
-  const port = editablePort.value.trim().replace(/^:/, '');
-  if (port === targetPort.value) return;
-  if (port !== '' && !(/^\d{1,5}$/.test(port) && Number(port) >= 1 && Number(port) <= 65535)) return;
+  const port = parsePortInput(editablePort.value);
+  if (port === null || port === targetPort.value) return;
   emit('update-options', { replace: setTargetPort(props.rule.replace, port) });
 };
+
+const { ruleErrors } = useRuleErrors();
+const ruleError = computed(() => (props.rule.on ? ruleErrors.value[props.rule.id] : '') || '');
 
 const hasActiveDomainFilters = computed(() => {
   const { include, exclude } = getDomainFilters(props.rule);

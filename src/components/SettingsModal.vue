@@ -15,8 +15,8 @@
         <section>
           <h4 class="text-lg font-bold text-slate-900 mb-1">Page HUD</h4>
           <p class="text-slate-500 mb-4">
-            A small overlay at the top of every page that lists the active URL redirects with their ports.
-            It hides while you hover over it, so it never blocks the page.
+            A small overlay at the top of every page that lists your URL redirects with their ports.
+            Switch them on and off or change a port right there; drag it by its grip if it covers something.
           </p>
 
           <div class="bg-white rounded-md border border-slate-200 divide-y divide-slate-200">
@@ -66,24 +66,8 @@
                 class="shrink-0"
                 @click="resetHudPosition"
               >
-                Reset to top centre
+                Reset to top center
               </UButton>
-            </div>
-          </div>
-
-          <!-- Preview -->
-          <div class="mt-4 rounded-md border border-dashed border-slate-300 bg-[repeating-linear-gradient(45deg,#f1f5f9_0_10px,#e2e8f0_10px_20px)] h-24 relative overflow-hidden">
-            <span class="absolute bottom-2 left-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Preview</span>
-            <div
-              v-if="settings.hudEnabled"
-              class="absolute top-2.5 left-1/2 -translate-x-1/2 flex flex-wrap justify-center items-center gap-x-2.5 gap-y-1 max-w-[90%] px-3 py-[5px] rounded-full bg-slate-900/80 text-slate-50 text-[12px] font-medium shadow-lg backdrop-blur-sm"
-              :style="{ opacity: settings.hudOpacity }"
-            >
-              <span class="w-1.5 h-1.5 rounded-full bg-primary-500 ring-[3px] ring-primary-500/25"></span>
-              <span v-for="(redirect, index) in previewRedirects" :key="index" class="inline-flex items-center gap-1.5 whitespace-nowrap">
-                {{ redirect.name }}
-                <span v-if="redirect.port" class="font-mono text-[11px] font-semibold px-1.5 rounded-md bg-primary-500/20 text-primary-300">:{{ redirect.port }}</span>
-              </span>
             </div>
           </div>
         </section>
@@ -118,15 +102,13 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import { getTargetPort, getTargetHost } from '../extension/urlPattern.js';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 
 // Keep in sync with DEFAULTS in src/inject/hud.js.
 const HUD_DEFAULTS = { hudEnabled: true, hudOpacity: 0.85 };
 
 const props = defineProps({
-  modelValue: { type: Boolean, default: false },
-  rules: { type: Array, default: () => [] }
+  modelValue: { type: Boolean, default: false }
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -153,17 +135,6 @@ const update = (key, value) => {
 const resetHudPosition = () => {
   if (hasStorage()) chrome.storage.local.remove('hudPosition');
 };
-
-// Mirrors the list the background publishes for the HUD (see publishHudRedirects).
-const previewRedirects = computed(() => {
-  const redirects = props.rules
-    .filter(rule => rule.on && rule.type === 'normalOverride')
-    .map(rule => ({
-      name: rule.name || getTargetHost(rule.replace) || 'URL Redirect',
-      port: getTargetPort(rule.replace)
-    }));
-  return redirects.length > 0 ? redirects : [{ name: 'My app', port: '3000' }];
-});
 
 const isSidePanelSupported = typeof chrome !== 'undefined' && !!chrome.sidePanel;
 const isSidePanelOpen = ref(false);

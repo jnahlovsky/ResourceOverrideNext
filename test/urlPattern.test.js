@@ -11,7 +11,8 @@ import {
     evaluateUrlMatch,
     getTargetPort,
     getTargetHost,
-    setTargetPort
+    setTargetPort,
+    parsePortInput
 } from '../src/extension/urlPattern.js';
 
 const redirect = (match, replace, url) => {
@@ -25,7 +26,7 @@ describe('wildcardToRegexSubstitution', () => {
         const replace = 'https://localhost:8082/fe/betslip-history-detail/**';
 
         expect(wildcardToRegexSubstitution(match, replace)).toEqual({
-            regexFilter: '(.*?)\\/betslip-history-detail\\/(.*)',
+            regexFilter: '^(.*?)\\/betslip-history-detail\\/(.*)',
             regexSubstitution: 'https://localhost:8082/fe/betslip-history-detail/\\2'
         });
         expect(redirect(match, replace, 'https://stage.example.com/fe/betslip-history-detail/main.js?v=3'))
@@ -39,6 +40,19 @@ describe('wildcardToRegexSubstitution', () => {
         expect(redirect('a*b**c***d', 'e***f*g**h****', 'a1b2c3d')).toBe('e3f1g2h****');
         expect(redirect('*://cdn.example.com/*', 'http://localhost/*/*', 'https://cdn.example.com/x.js'))
             .toBe('http://localhost/https/x.js');
+    });
+
+    // Chrome replaces only the matched part of the URL; the result has to be the destination alone.
+    it('replaces the whole URL when the pattern starts mid-URL', () => {
+        expect(redirect('127.0.0.1:8781/app/**', 'http://localhost:8782/app/**', 'http://127.0.0.1:8781/app/js/main.js'))
+            .toBe('http://localhost:8782/app/js/main.js');
+        expect(redirect('example.com/**', 'http://localhost:3000/**', 'https://www.example.com/a.js?v=1'))
+            .toBe('http://localhost:3000/a.js?v=1');
+    });
+
+    it('keeps the rest of the URL after a pattern that ends mid-URL', () => {
+        expect(redirect('*/app/**.js', 'http://localhost:3000/app/**.js', 'https://example.com/app/main.js?v=1'))
+            .toBe('http://localhost:3000/app/main.js?v=1');
     });
 
     it('keeps urlFilter anchors and separators', () => {
@@ -57,7 +71,7 @@ describe('wildcardToRegexSubstitution', () => {
 
     it('escapes regex characters and backslashes', () => {
         const sub = wildcardToRegexSubstitution('https://a.com/(x)?/*', 'http://b\\c/*');
-        expect(sub.regexFilter).toBe('https:\\/\\/a\\.com\\/\\(x\\)\\?\\/(.*)');
+        expect(sub.regexFilter).toBe('^.*?https:\\/\\/a\\.com\\/\\(x\\)\\?\\/(.*)');
         expect(sub.regexSubstitution).toBe('http://b\\\\c/\\1');
     });
 });
@@ -160,5 +174,14 @@ describe('redirect target', () => {
         expect(setTargetPort('http://[::1]:3000/x', '4000')).toBe('http://[::1]:4000/x');
         expect(setTargetPort('/relative/path', '3000')).toBe('/relative/path');
         expect(setTargetPort('', '3000')).toBe('');
+    });
+
+    it('parses a typed port', () => {
+        expect(parsePortInput(' 3000 ')).toBe('3000');
+        expect(parsePortInput(':8082')).toBe('8082');
+        expect(parsePortInput('')).toBe('');
+        expect(parsePortInput('0')).toBeNull();
+        expect(parsePortInput('65536')).toBeNull();
+        expect(parsePortInput('80a')).toBeNull();
     });
 });

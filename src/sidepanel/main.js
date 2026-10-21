@@ -5,7 +5,8 @@ import { connectDevReload } from '../extension/devReload.js'
 import SidePanel from './SidePanel.vue'
 import '../assets/main.css'
 
-const app = createApp(SidePanel)
+// popup.html reuses this entry and marks itself on <body>.
+const app = createApp(SidePanel, { context: document.body.dataset.context || 'sidepanel' })
 const router = createRouter({
   routes: [],
   history: createWebHashHistory()

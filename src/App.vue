@@ -1,6 +1,7 @@
 <template>
   <UApp>
-    <div id="vue-root" class="flex flex-col bg-white" :class="isFullTab ? 'w-full max-w-[1200px] h-[calc(100vh-40px)] my-5 mx-auto rounded-xl shadow-xl overflow-hidden' : 'w-[750px] h-[550px]'">
+    <!-- Opened as a tab, the options page or the DevTools panel; the popup is popup.html. -->
+    <div id="vue-root" class="flex flex-col bg-white w-full max-w-[1200px] h-[calc(100vh-40px)] my-5 mx-auto rounded-xl shadow-xl overflow-hidden">
       <AppHeader />
 
       <!-- Main View -->
@@ -154,7 +155,7 @@
     <HelpModal v-model="isHelpOpen" />
 
     <!-- Settings Modal -->
-    <SettingsModal v-model="isSettingsOpen" :rules="globalRules" />
+    <SettingsModal v-model="isSettingsOpen" />
 
     <!-- Test Rules Modal -->
     <TestRulesModal v-model="isTestOpen" :rules="globalRules" />
@@ -190,7 +191,6 @@ import SettingsModal from './components/SettingsModal.vue';
 import ConfirmModal from './components/ConfirmModal.vue';
 import TestRulesModal from './components/TestRulesModal.vue';
 
-const isFullTab = ref(new URLSearchParams(window.location.search).has('tab'));
 const activeTab = ref('redirects');
 
 const tabItems = [

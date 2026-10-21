@@ -21,7 +21,7 @@ const RELOAD_PORT = 5174;
 const KEEPALIVE_MS = 20000;
 const DEBOUNCE_MS = 150;
 
-const WATCHED = ['src', 'manifest.json', 'index.html', 'sidepanel.html', 'devtools.html', 'icons', 'vite.config.js'];
+const WATCHED = ['src', 'manifest.json', 'index.html', 'popup.html', 'sidepanel.html', 'devtools.html', 'icons', 'vite.config.js'];
 // Changes here need the extension itself reloaded; anything else is UI-only.
 const EXTENSION_PATHS = ['manifest.json', 'vite.config.js', 'src/extension/', 'src/inject/'];
 const CONTENT_SCRIPT_PATH = 'src/inject/';
