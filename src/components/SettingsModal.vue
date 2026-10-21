@@ -1,11 +1,9 @@
 <template>
-  <!-- Clicking the backdrop closes it, but not a click that started inside (e.g. selecting
-       text in a field and letting go outside). -->
   <div
     v-if="isOpen"
     class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm"
-    @mousedown="isBackdropPressed = $event.target === $event.currentTarget"
-    @click.self="isBackdropPressed && close()"
+    @mousedown="onBackdropMousedown"
+    @click="onBackdropClick"
   >
     <div
       role="dialog"
@@ -245,6 +243,7 @@
 </template>
 
 <script setup>
+import { useModal } from '../composables/useModal.js';
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { buildUrlMatch, getTargetPort, parseSiteList, isAllowlistSupported } from '../extension/urlPattern.js';
 import { getRuleDisplayName, canEditRulePort } from '../lib/ruleLabels.js';
@@ -435,12 +434,6 @@ const close = () => {
   isOpen.value = false;
 };
 
-const isBackdropPressed = ref(false);
-
-// Esc closes it too, unless a field inside handles Esc itself.
-const onKeyDown = (e) => {
-  if (e.key === 'Escape' && isOpen.value && !e.defaultPrevented) close();
-};
-onMounted(() => window.addEventListener('keydown', onKeyDown));
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown));
+// Backdrop click and Esc close it (shared with the other modals).
+const { onBackdropMousedown, onBackdropClick } = useModal(isOpen, close);
 </script>

@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { markSaving, markSaved } from './useSaveStatus.js';
 
 export function useRules() {
   const domains = ref([]);
@@ -26,9 +27,11 @@ export function useRules() {
   };
 
   const saveDomain = (domainData) => {
+    markSaving();
     return new Promise((resolve) => {
       if (typeof chrome !== 'undefined' && chrome.runtime) {
         chrome.runtime.sendMessage({ action: "saveDomain", data: domainData }, () => {
+          markSaved(chrome.runtime.lastError);
           // Tell legacy system (if it still exists somewhere in background) that data updated
           chrome.runtime.sendMessage({action: "dataUpdated"});
           fetchDomains().then(resolve);
@@ -38,6 +41,7 @@ export function useRules() {
         const idx = domains.value.findIndex(d => d.id === domainData.id);
         if (idx !== -1) domains.value[idx] = domainData;
         else domains.value.push(domainData);
+        markSaved();
         resolve();
       }
     });

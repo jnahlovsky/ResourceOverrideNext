@@ -12,6 +12,7 @@
         <img src="/icons/icon-48x48.png" alt="" class="w-5 h-5 shrink-0 transition-all" :class="!isExtensionOn && 'grayscale opacity-60'" />
         <span class="min-w-0 truncate text-[15px] font-extrabold tracking-tight @max-2xs:hidden" :class="isExtensionOn ? 'text-slate-900' : 'text-slate-400'">Resourced</span>
         <div class="flex-1"></div>
+        <SaveStatus compact class="shrink-0" />
         <div class="flex items-center gap-0.5 shrink-0">
           <UButton
             v-if="view === 'rules'"
@@ -327,6 +328,7 @@ import { useRules } from '../composables/useRules';
 import { useRuleErrors } from '../composables/useRuleErrors.js';
 import ActivityLog from './ActivityLog.vue';
 import RuleControls from '../components/RuleControls.vue';
+import SaveStatus from '../components/SaveStatus.vue';
 import { validateRule } from '../lib/ruleValidation.js';
 import { RULE_GROUPS, getRuleDisplayName, getRuleSummary, getRulePort, canEditRulePort } from '../lib/ruleLabels.js';
 import { setTargetPort, parsePortInput, getDomainFilters } from '../extension/urlPattern.js';

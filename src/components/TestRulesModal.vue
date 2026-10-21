@@ -1,6 +1,11 @@
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
-    <div class="bg-white flex flex-col w-[750px] max-w-[90vw] h-[550px] max-h-[90vh] shadow-2xl rounded-xl overflow-hidden">
+  <div
+    v-if="isOpen"
+    class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm"
+    @mousedown="onBackdropMousedown"
+    @click="onBackdropClick"
+  >
+    <div role="dialog" aria-modal="true" aria-label="Test rules" class="bg-white flex flex-col w-[750px] max-w-[90vw] h-[550px] max-h-[90vh] shadow-2xl rounded-xl overflow-hidden">
       <!-- Header -->
       <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0 bg-white">
         <h3 class="text-base font-semibold leading-6 text-slate-900 flex items-center gap-2">
@@ -94,6 +99,7 @@
 </template>
 
 <script setup>
+import { useModal } from '../composables/useModal.js';
 import { ref, computed, watch } from 'vue';
 import { buildUrlMatch, evaluateUrlMatch, hostPassesDomainFilters } from '../extension/urlPattern.js';
 
@@ -121,6 +127,9 @@ watch(isOpen, (newVal) => {
 const close = () => {
   isOpen.value = false;
 };
+
+// Backdrop click and Esc close it, like the other modals.
+const { onBackdropMousedown, onBackdropClick } = useModal(isOpen, close);
 
 const matchingRules = computed(() => {
   if (!testUrl.value) return [];

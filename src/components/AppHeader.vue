@@ -7,6 +7,7 @@
           </h1>
       </div>
       <div class="flex flex-1 justify-end items-center gap-3" v-if="isExtensionOn !== null">
+          <SaveStatus />
           <span class="text-xs font-bold uppercase tracking-wider" :class="isExtensionOn ? 'text-primary-600' : 'text-slate-400'">
             {{ isExtensionOn ? 'Active' : 'Disabled' }}
           </span>
@@ -17,6 +18,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import SaveStatus from './SaveStatus.vue';
 
 const isExtensionOn = ref(null);
 // Transitions start after the first state is painted, so loading as "off" doesn't animate.
