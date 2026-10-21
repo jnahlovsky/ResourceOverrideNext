@@ -175,6 +175,17 @@ export function convertMatchMode(rule, toMode) {
     return patch;
 }
 
+// Rules that act on what they match: an empty pattern would mean every request, which is
+// never what a new, half-filled rule means.
+const NEEDS_PATTERN = new Set(["fileOverride", "blockRule", "queryRule", "mockRule"]);
+
+// Query parameter rules redirect to the same URL with the parameters changed.
+const finishNonRedirect = (rule, condition) => {
+    if (rule.type !== "queryRule") return { condition };
+    const queryTransform = buildQueryTransform(rule);
+    return queryTransform ? { condition, redirect: { transform: { queryTransform } } } : null;
+};
+
 /**
  * Builds the DNR condition (and, for redirects, the redirect action) that matches a rule's
  * URL pattern. Returns null when the rule is incomplete and should not be registered.
@@ -189,10 +200,10 @@ export function buildUrlMatch(rule) {
         const source = getRegexSource(match);
         if (source) {
             condition.regexFilter = source;
-        } else if (isRedirect || rule.type === "fileOverride") {
+        } else if (isRedirect || NEEDS_PATTERN.has(rule.type)) {
             return null;
         }
-        if (!isRedirect) return { condition };
+        if (!isRedirect) return finishNonRedirect(rule, condition);
         // DNR regexSubstitution requires a valid string; $1 becomes \1.
         if (!replace) return null;
         return { condition, redirect: { regexSubstitution: replace.replace(/\$([0-9])/g, "\\$1") } };
@@ -201,10 +212,10 @@ export function buildUrlMatch(rule) {
     if (!isRedirect) {
         if (match && match !== "*") {
             condition.urlFilter = match;
-        } else if (rule.type === "fileOverride" && !match) {
+        } else if (NEEDS_PATTERN.has(rule.type) && !match) {
             return null;
         }
-        return { condition };
+        return finishNonRedirect(rule, condition);
     }
 
     // Chrome DNR strictly requires action.redirect.url to be a valid absolute URL
@@ -259,6 +270,7 @@ export function evaluateUrlMatch(built, url) {
     if (regex && !regex.test(url)) return { matched: false };
     if (!redirect) return { matched: true };
     if (redirect.url) return { matched: true, redirectUrl: redirect.url };
+    if (redirect.transform) return { matched: true, redirectUrl: applyQueryTransform(url, redirect.transform.queryTransform) };
     return {
         matched: true,
         redirectUrl: applyRegexSubstitution(condition.regexFilter || ".*", redirect.regexSubstitution, url)
@@ -440,4 +452,42 @@ export function buildSiteVariants(condition, sites) {
         variants.push(rest);
     }
     return variants;
+}
+
+/** The regex (case-insensitive) a buildUrlMatch result matches URLs with, as a string. */
+export function urlMatchToRegex(built) {
+    if (built.condition.regexFilter) return built.condition.regexFilter;
+    if (built.condition.urlFilter) return wildcardToRegex(built.condition.urlFilter).regex;
+    return "";
+}
+
+/**
+ * The DNR queryTransform of a query parameter rule. Its params are rows of
+ * { operation: "set" | "remove", key, value }: set ones are added or replaced, removed ones
+ * dropped. Null when it changes nothing.
+ */
+export function buildQueryTransform(rule) {
+    const params = (rule.params || []).filter(param => param.key && param.key.trim());
+    const set = params
+        .filter(param => param.operation !== "remove")
+        .map(param => ({ key: param.key.trim(), value: String(param.value ?? "") }));
+    const remove = params.filter(param => param.operation === "remove").map(param => param.key.trim());
+    if (set.length === 0 && remove.length === 0) return null;
+    const queryTransform = {};
+    if (set.length > 0) queryTransform.addOrReplaceParams = set;
+    if (remove.length > 0) queryTransform.removeParams = remove;
+    return queryTransform;
+}
+
+/** Applies a DNR queryTransform to a URL the way Chrome does. */
+export function applyQueryTransform(url, queryTransform) {
+    let parsed;
+    try {
+        parsed = new URL(url);
+    } catch (e) {
+        return url;
+    }
+    (queryTransform?.removeParams || []).forEach(key => parsed.searchParams.delete(key));
+    (queryTransform?.addOrReplaceParams || []).forEach(({ key, value }) => parsed.searchParams.set(key, value));
+    return parsed.href;
 }

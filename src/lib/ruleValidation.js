@@ -93,6 +93,48 @@ const validateHeaders = (rule, add) => {
   });
 };
 
+const validateQuery = (rule, add) => {
+  const params = (rule.params || []).filter(param => (param.key || '').trim() || param.value);
+  if (!rule.match && params.length === 0) return;
+  if (!rule.match) add('warning', 'Add a URL pattern; until then the rule does nothing.');
+  if (params.length === 0) add('warning', 'Add a parameter to set or remove; until then the rule does nothing.');
+  params.forEach(param => {
+    const key = (param.key || '').trim();
+    if (!key) add('warning', 'A parameter without a name is ignored.');
+    else if (/[=&#?\s]/.test(key)) add('error', `"${key}" isn't a valid parameter name (no spaces, =, &, ? or #).`);
+  });
+};
+
+const validateBlock = (rule, add) => {
+  if (rule.match === '*' || rule.match === '**') add('warning', 'This blocks every request on every site. Use a narrower pattern.');
+};
+
+const validateMock = (rule, add) => {
+  if (!rule.match) {
+    if (rule.body || (rule.mockHeaders || []).length > 0) add('warning', 'Add a URL pattern; until then the mock answers nothing.');
+    return;
+  }
+  const delay = Number(rule.delay);
+  if (delay > 60000) add('warning', 'The delay is capped at 60 000 ms (one minute).');
+  if (rule.mockMode === 'delay') {
+    if (!(delay > 0)) add('warning', 'Set a delay; until then the real response comes as usual.');
+    return;
+  }
+  const status = Number(rule.status);
+  if (!(status >= 200 && status <= 599)) add('error', 'The status has to be between 200 and 599.');
+  if ((rule.contentType || 'application/json') === 'application/json' && (rule.body || '').trim()) {
+    try {
+      JSON.parse(rule.body);
+    } catch (e) {
+      add('warning', "The body isn't valid JSON; it's sent as typed.");
+    }
+  }
+  (rule.mockHeaders || []).forEach(header => {
+    const name = (header.header || '').trim();
+    if (name && !HEADER_NAME.test(name)) add('error', `"${name}" isn't a valid header name (letters, digits and dashes; no spaces).`);
+  });
+};
+
 const validateDomainFilters = (rule, add) => {
   if (!rule.domainFiltersOn) return;
   const invalid = [...parseDomainList(rule.includeDomains), ...parseDomainList(rule.excludeDomains)]
@@ -107,9 +149,12 @@ export function validateRule(rule) {
   const add = (level, message) => issues.push({ level, message });
   if (rule.type === 'normalOverride') {
     validateRedirect(rule, add);
-  } else if ((rule.type === 'fileOverride' || rule.type === 'headerRule') && rule.match && getMatchMode(rule) === 'regex') {
+  } else if (rule.match && getMatchMode(rule) === 'regex' && rule.type !== 'fileInject') {
     validateRegex(getRegexSource(rule.match), add);
   }
+  if (rule.type === 'queryRule') validateQuery(rule, add);
+  if (rule.type === 'blockRule') validateBlock(rule, add);
+  if (rule.type === 'mockRule') validateMock(rule, add);
   if (rule.type === 'headerRule') validateHeaders(rule, add);
   validateDomainFilters(rule, add);
   return issues;

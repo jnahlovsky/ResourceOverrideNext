@@ -320,10 +320,8 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import draggable from 'vuedraggable';
-import RedirectRule from '../components/RedirectRule.vue';
-import HeaderRule from '../components/HeaderRule.vue';
-import FileOverrideRule from '../components/FileOverrideRule.vue';
-import FileInjectRule from '../components/FileInjectRule.vue';
+// The editor's rule cards, without their header (the row has the name, port and switch).
+import { RULE_EDITORS } from '../components/ruleEditors.js';
 import { useRules } from '../composables/useRules';
 import { useRuleErrors } from '../composables/useRuleErrors.js';
 import ActivityLog from './ActivityLog.vue';
@@ -364,14 +362,6 @@ const reorderGroup = async (group, reordered) => {
   const otherRules = rules.value.filter(rule => !group.types.includes(rule.type));
   globalDomain.value.rules = [...otherRules, ...reordered];
   await saveDomain(globalDomain.value);
-};
-
-// The editor's rule cards, without their header (the row has the name, port and switch).
-const RULE_EDITORS = {
-  normalOverride: RedirectRule,
-  headerRule: HeaderRule,
-  fileOverride: FileOverrideRule,
-  fileInject: FileInjectRule
 };
 
 // Either one rule open at a time (accordion), or every rule open and staying open.

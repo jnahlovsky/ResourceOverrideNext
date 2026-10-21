@@ -25,81 +25,28 @@
                 <span class="text-slate-500">Loading rules...</span>
               </div>
 
-              <div v-if="item.value === 'redirects'" class="flex-1 min-h-0 flex flex-col">
-                <div v-if="redirectRulesWritable.length === 0" class="text-center py-8 text-slate-400">
-                  No redirect rules configured.
+              <div class="flex-1 min-h-0 flex flex-col">
+                <div v-if="!isLoading && groupLists[item.value].value.length === 0" class="text-center py-8 text-slate-400">
+                  No {{ item.label.toLowerCase() }} rules yet.
                 </div>
 
-                <draggable 
-                  v-model="redirectRulesWritable" 
-                  item-key="id" 
-                  handle=".drag-handle" 
+                <draggable
+                  :model-value="groupLists[item.value].value"
+                  @update:model-value="(list) => { groupLists[item.value].value = list; }"
+                  item-key="id"
+                  handle=".drag-handle"
                   animation="200"
                   class="flex-1 min-h-0"
                 >
                   <template #item="{ element: rule }">
-                    <RedirectRule
+                    <component
+                      :is="RULE_EDITORS[rule.type]"
                       :key="rule.id"
                       :rule="rule"
                       @update="updateRule(rule.id, $event)"
                       @delete="deleteRuleFromDomain(globalDomain.id, rule.id)"
+                      @edit-file="openFileEditor"
                     />
-                  </template>
-                </draggable>
-              </div>
-
-              <div v-else-if="item.value === 'headers'" class="flex-1 min-h-0 flex flex-col">
-                <div v-if="headerRulesWritable.length === 0" class="text-center py-8 text-slate-400">
-                  No header rules configured.
-                </div>
-
-                <draggable 
-                  v-model="headerRulesWritable" 
-                  item-key="id" 
-                  handle=".drag-handle" 
-                  animation="200"
-                  class="flex-1 min-h-0"
-                >
-                  <template #item="{ element: rule }">
-                    <HeaderRule
-                      :key="rule.id"
-                      :rule="rule"
-                      @update="updateRule(rule.id, $event)"
-                      @delete="deleteRuleFromDomain(globalDomain.id, rule.id)"
-                    />
-                  </template>
-                </draggable>
-              </div>
-
-              <div v-else-if="item.value === 'injections'" class="flex-1 min-h-0 flex flex-col">
-                <div v-if="injectionRulesWritable.length === 0" class="text-center py-8 text-slate-400">
-                  No injection rules configured.
-                </div>
-
-                <draggable 
-                  v-model="injectionRulesWritable" 
-                  item-key="id" 
-                  handle=".drag-handle" 
-                  animation="200"
-                  class="flex-1 min-h-0"
-                >
-                  <template #item="{ element: rule }">
-                    <div>
-                      <FileOverrideRule
-                        v-if="rule.type === 'fileOverride'"
-                        :rule="rule"
-                        @update="updateRule(rule.id, $event)"
-                        @delete="deleteRuleFromDomain(globalDomain.id, rule.id)"
-                        @edit-file="openFileEditor"
-                      />
-                      <FileInjectRule
-                        v-else-if="rule.type === 'fileInject'"
-                        :rule="rule"
-                        @update="updateRule(rule.id, $event)"
-                        @delete="deleteRuleFromDomain(globalDomain.id, rule.id)"
-                        @edit-file="openFileEditor"
-                      />
-                    </div>
                   </template>
                 </draggable>
               </div>
@@ -125,18 +72,19 @@
             Test Rules
           </UButton>
 
-          <UDropdownMenu 
-            v-if="activeTab === 'injections'" 
-            :items="[{ label: 'URL to File', onSelect: () => addEmptyRule('fileOverride') }, { label: 'Inject File', onSelect: () => addEmptyRule('fileInject') }]"
+          <!-- One kind of rule in the tab: a button; several: a menu of them. -->
+          <UDropdownMenu
+            v-if="activeGroup.types.length > 1"
+            :items="activeGroup.types.map(type => ({ label: RULE_TYPES[type].label, description: RULE_TYPES[type].description, icon: RULE_TYPES[type].icon, onSelect: () => addEmptyRule(type) }))"
             :content="{ side: 'top', align: 'end', sideOffset: 8 }"
-            :ui="{ content: 'z-[100]' }"
+            :ui="{ content: 'z-[100] w-80' }"
           >
             <UButton color="primary" class="font-semibold px-4 h-9 shadow-sm" icon="i-lucide-plus" trailing-icon="i-lucide-chevron-down">
               Add Rule
             </UButton>
           </UDropdownMenu>
 
-          <UButton v-else color="primary" @click="addEmptyRule(activeTab === 'headers' ? 'headerRule' : 'normalOverride')" class="font-semibold px-4 h-9 shadow-sm" icon="i-lucide-plus">
+          <UButton v-else color="primary" @click="addEmptyRule(activeGroup.types[0])" class="font-semibold px-4 h-9 shadow-sm" icon="i-lucide-plus">
             Add Rule
           </UButton>
         </div>
@@ -181,10 +129,8 @@ import { useRules } from './composables/useRules';
 
 // Components
 import AppHeader from './components/AppHeader.vue';
-import RedirectRule from './components/RedirectRule.vue';
-import HeaderRule from './components/HeaderRule.vue';
-import FileOverrideRule from './components/FileOverrideRule.vue';
-import FileInjectRule from './components/FileInjectRule.vue';
+import { RULE_EDITORS } from './components/ruleEditors.js';
+import { RULE_GROUPS, RULE_TYPES, newRule, isRuleEmpty } from './lib/ruleLabels.js';
 import CodeEditorModal from './components/CodeEditorModal.vue';
 import HelpModal from './components/HelpModal.vue';
 import SettingsModal from './components/SettingsModal.vue';
@@ -193,11 +139,8 @@ import TestRulesModal from './components/TestRulesModal.vue';
 
 const activeTab = ref('redirects');
 
-const tabItems = [
-  { label: 'URL Redirects', value: 'redirects' },
-  { label: 'Custom Headers', value: 'headers' },
-  { label: 'Inline/File Injection', value: 'injections' }
-];
+const tabItems = RULE_GROUPS.map(group => ({ label: group.label, value: group.value, icon: group.icon }));
+const activeGroup = computed(() => RULE_GROUPS.find(group => group.value === activeTab.value) || RULE_GROUPS[0]);
 
 const { domains, globalDomain, isLoading, fetchDomains, saveGlobalRule, saveDomain, deleteRule, importRules, exportRules } = useRules();
 
@@ -319,16 +262,12 @@ const createDraggableList = (filterFn) => computed({
   }
 });
 
-const redirectRulesWritable = createDraggableList(r => r.type === 'normalOverride');
-const headerRulesWritable = createDraggableList(r => r.type === 'headerRule');
-const injectionRulesWritable = createDraggableList(r => r.type === 'fileOverride' || r.type === 'fileInject');
+// One reorderable list per tab.
+const groupLists = Object.fromEntries(RULE_GROUPS.map(group =>
+  [group.value, createDraggableList(rule => group.types.includes(rule.type))]
+));
 
-const getRuleCount = (type) => {
-  if (type === 'redirects') return redirectRulesWritable.value.length;
-  if (type === 'headers') return headerRulesWritable.value.length;
-  if (type === 'injections') return injectionRulesWritable.value.length;
-  return 0;
-};
+const getRuleCount = (groupValue) => groupLists[groupValue]?.value.length || 0;
 
 // Actions
 const updateRule = async (ruleId, updatedRuleData) => {
@@ -343,12 +282,7 @@ const updateRule = async (ruleId, updatedRuleData) => {
 
 const deleteRuleFromDomain = async (domainId, ruleId) => {
   const rule = globalDomain.value?.rules.find(r => r.id === ruleId);
-  const isEmpty = rule && (
-    (rule.type === 'normalOverride' && !rule.match && !rule.replace) ||
-    ((rule.type === 'fileOverride' || rule.type === 'headerRule') && !rule.match) ||
-    (rule.type === 'fileInject' && !rule.fileName && !rule.file)
-  );
-
+  const isEmpty = rule && isRuleEmpty(rule);
   if (isEmpty) {
     await deleteRule(domainId, ruleId);
   } else {
@@ -360,25 +294,7 @@ const deleteRuleFromDomain = async (domainId, ruleId) => {
 };
 
 const addEmptyRule = async (type) => {
-  const newRule = { type, on: true };
-  if (type === 'normalOverride') {
-    newRule.match = '';
-    newRule.replace = '';
-  } else if (type === 'fileOverride') {
-    newRule.match = '';
-    newRule.file = '';
-  } else if (type === 'fileInject') {
-    newRule.fileName = '';
-    newRule.fileType = 'js';
-    newRule.injectLocation = 'head';
-    newRule.injectTiming = 'start';
-    newRule.file = '';
-  } else if (type === 'headerRule') {
-    newRule.match = '';
-    newRule.requestRules = [];
-    newRule.responseRules = [];
-  }
-  await saveGlobalRule(newRule);
+  await saveGlobalRule(newRule(type));
 };
 
 const handleImport = () => {

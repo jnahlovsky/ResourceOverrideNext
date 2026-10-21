@@ -7,7 +7,10 @@ import { getRuleDisplayName } from './ruleLabels.js';
 
 export const ACTIVITY_TYPES = {
   redirect: { label: 'Redirect', short: 'REDIR' },
+  query: { label: 'Query parameters', short: 'QUERY' },
+  mock: { label: 'Mock response', short: 'MOCK' },
   file: { label: 'File override', short: 'FILE' },
+  block: { label: 'Blocked', short: 'BLOCK' },
   headers: { label: 'Headers', short: 'HEAD' },
   inject: { label: 'Injection', short: 'INJECT' }
 };
@@ -50,7 +53,10 @@ export function attributeRedirect(compiled, url, redirectUrl) {
     return entry ? { type: 'file', entry } : null;
   }
   const candidates = compiled.filter(e => e.rule.type === 'normalOverride' && matches(e, url));
-  if (candidates.length === 0) return null;
+  if (candidates.length === 0) {
+    const query = compiled.find(e => e.rule.type === 'queryRule' && matches(e, url));
+    return query ? { type: 'query', entry: query } : null;
+  }
   // Prefer the rule whose destination is exactly where Chrome went.
   const target = normalizeUrl(redirectUrl);
   const exact = candidates.find(e => {
@@ -58,6 +64,11 @@ export function attributeRedirect(compiled, url, redirectUrl) {
     return expected && normalizeUrl(expected) === target;
   });
   return { type: 'redirect', entry: exact || candidates[0] };
+}
+
+/** The block rule that cancelled a request (Chrome reports net::ERR_BLOCKED_BY_CLIENT). */
+export function attributeBlock(compiled, url) {
+  return compiled.find(e => e.rule.type === 'blockRule' && matches(e, url)) || null;
 }
 
 /** Header rules that apply to a request. */
@@ -76,7 +87,7 @@ export function describeHeaderChanges(rule) {
 /** "200", "ERR", "…" style status bucket for filtering and colours. */
 export function statusBucket(entry) {
   if (entry.error) return 'error';
-  if (entry.type === 'inject' || entry.inline) return 'ok';
+  if (entry.type === 'inject' || entry.type === 'block' || entry.inline || entry.mocked) return 'ok';
   if (entry.status === undefined || entry.status === null) return 'pending';
   if (entry.status >= 400) return 'error';
   return 'ok';

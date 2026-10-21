@@ -28,6 +28,27 @@
         "*://*/*"
       ],
       "js": [
+        "src/inject/mockShim.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "*://*/*"
+      ],
+      "js": [
+        "src/inject/mockBridge.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://*/*"
+      ],
+      "js": [
         "src/inject/scriptInjector.js"
       ],
       "all_frames": true,

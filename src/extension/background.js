@@ -9,6 +9,7 @@ import './action.js';
 import { updateDNRRules } from './netRequestRules.js';
 import './activityLog.js';
 import './fileInjection.js';
+import './mockRules.js';
 import { connectDevReload } from './devReload.js';
 
 globalThis.bgapp.updateDNRRules = updateDNRRules;

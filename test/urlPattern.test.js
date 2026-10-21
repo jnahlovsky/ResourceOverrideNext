@@ -185,3 +185,21 @@ describe('redirect target', () => {
         expect(parsePortInput('80a')).toBeNull();
     });
 });
+
+describe('new rule types', () => {
+    it('needs a pattern for block, query and mock rules', () => {
+        expect(buildUrlMatch({ type: 'blockRule', match: '' })).toBeNull();
+        expect(buildUrlMatch({ type: 'mockRule', match: '' })).toBeNull();
+        expect(buildUrlMatch({ type: 'blockRule', match: '*/analytics.js' })).toEqual({ condition: { urlFilter: '*/analytics.js' } });
+    });
+
+    it('turns a query parameter rule into a query transform', () => {
+        const built = buildUrlMatch({ type: 'queryRule', match: 'example.com/app', params: [
+            { operation: 'set', key: 'debug', value: '1' }, { operation: 'set', key: '', value: 'x' }, { operation: 'remove', key: 'utm_source' }
+        ] });
+        expect(built.redirect).toEqual({ transform: { queryTransform: { addOrReplaceParams: [{ key: 'debug', value: '1' }], removeParams: ['utm_source'] } } });
+        expect(evaluateUrlMatch(built, 'https://example.com/app?utm_source=x&a=2'))
+            .toEqual({ matched: true, redirectUrl: 'https://example.com/app?a=2&debug=1' });
+        expect(buildUrlMatch({ type: 'queryRule', match: '*', params: [] })).toBeNull();
+    });
+});

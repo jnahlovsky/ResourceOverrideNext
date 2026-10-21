@@ -21,8 +21,12 @@ const buildHeaderMods = (headerRules) => (headerRules || [])
 
 // Returns the DNR action for a rule, or null when it has nothing to register.
 const buildAction = (ruleObj, urlMatch) => {
-    if (ruleObj.type === "normalOverride") {
+    if (ruleObj.type === "normalOverride" || ruleObj.type === "queryRule") {
         return { type: "redirect", redirect: urlMatch.redirect };
+    }
+
+    if (ruleObj.type === "blockRule") {
+        return { type: "block" };
     }
 
     if (ruleObj.type === "headerRule") {

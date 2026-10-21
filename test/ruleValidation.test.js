@@ -50,3 +50,26 @@ describe('rule validation', () => {
             .toEqual([`error: "stage-*.foo.com" isn't a domain. Use e.g. example.com; subdomains are included.`]);
     });
 });
+
+describe('new rule type validation', () => {
+    it('checks query parameter rules', () => {
+        expect(messages({ type: 'queryRule', match: '', params: [] })).toEqual([]);
+        expect(messages({ type: 'queryRule', match: '*/app/*', params: [] })[0]).toMatch(/^warning: Add a parameter/);
+        expect(messages({ type: 'queryRule', match: '*', params: [{ operation: 'set', key: 'a b', value: '1' }] }))
+            .toEqual([`error: "a b" isn't a valid parameter name (no spaces, =, &, ? or #).`]);
+    });
+
+    it('warns about blocking everything', () => {
+        expect(messages({ type: 'blockRule', match: '*' })[0]).toMatch(/blocks every request/);
+        expect(messages({ type: 'blockRule', match: '*/analytics.js' })).toEqual([]);
+    });
+
+    it('checks mock status, JSON body, headers and delay mode', () => {
+        expect(messages({ type: 'mockRule', match: '*/api', status: 200, contentType: 'application/json', body: '{"a":1}' })).toEqual([]);
+        expect(messages({ type: 'mockRule', match: '*/api', status: 99, body: '' })).toEqual(['error: The status has to be between 200 and 599.']);
+        expect(messages({ type: 'mockRule', match: '*/api', status: 200, contentType: 'application/json', body: '{a' }))
+            .toEqual(["warning: The body isn't valid JSON; it's sent as typed."]);
+        expect(messages({ type: 'mockRule', match: '*/api', mockMode: 'delay', delay: 0 })[0]).toMatch(/^warning: Set a delay/);
+        expect(messages({ type: 'mockRule', match: '*/api', status: 200, mockHeaders: [{ header: 'X Bad', value: '1' }] })[0]).toMatch(/isn't a valid header name/);
+    });
+});

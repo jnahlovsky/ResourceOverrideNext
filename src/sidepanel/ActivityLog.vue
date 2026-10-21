@@ -244,6 +244,9 @@ const FILTERS_KEY = 'resourced:activity-filters';
 
 const TYPE_STYLES = {
   redirect: { text: 'text-emerald-400', dot: 'bg-emerald-400', chip: 'text-emerald-300 bg-emerald-400/10 ring-emerald-400/30', border: 'border-l-emerald-400/60', target: 'text-cyan-300' },
+  query: { text: 'text-teal-300', dot: 'bg-teal-300', chip: 'text-teal-200 bg-teal-300/10 ring-teal-300/30', border: 'border-l-teal-300/60', target: 'text-teal-200' },
+  mock: { text: 'text-fuchsia-400', dot: 'bg-fuchsia-400', chip: 'text-fuchsia-300 bg-fuchsia-400/10 ring-fuchsia-400/30', border: 'border-l-fuchsia-400/60', target: 'text-fuchsia-300' },
+  block: { text: 'text-rose-400', dot: 'bg-rose-400', chip: 'text-rose-300 bg-rose-400/10 ring-rose-400/30', border: 'border-l-rose-400/60', target: 'text-rose-300' },
   file: { text: 'text-sky-400', dot: 'bg-sky-400', chip: 'text-sky-300 bg-sky-400/10 ring-sky-400/30', border: 'border-l-sky-400/60', target: 'text-sky-300' },
   headers: { text: 'text-amber-400', dot: 'bg-amber-400', chip: 'text-amber-300 bg-amber-400/10 ring-amber-400/30', border: 'border-l-amber-400/60', target: 'text-amber-300' },
   inject: { text: 'text-violet-400', dot: 'bg-violet-400', chip: 'text-violet-300 bg-violet-400/10 ring-violet-400/30', border: 'border-l-violet-400/60', target: 'text-violet-300' }
@@ -372,6 +375,7 @@ const formatDuration = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(ms >= 10000 
 
 const statusLabel = (entry) => {
   if (entry.error) return 'ERR';
+  if (entry.type === 'block') return 'BLOCKED';
   if (entry.type === 'inject') return 'DONE';
   if (entry.inline) return 'SERVED';
   if (entry.status === undefined || entry.status === null) return '···';

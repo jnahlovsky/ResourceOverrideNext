@@ -6,7 +6,7 @@
 // It also drives the toolbar icon's badge: how many rules did something on each tab's page.
 // The log is kept in chrome.storage.session: it survives the service worker being
 // stopped, and is gone when the browser closes.
-import { compileRules, attributeRedirect, matchHeaderRules, describeHeaderChanges, statusBucket } from '../lib/activity.js';
+import { compileRules, attributeRedirect, attributeBlock, matchHeaderRules, describeHeaderChanges, statusBucket } from '../lib/activity.js';
 import { getRuleSummary, getRuleDisplayName } from '../lib/ruleLabels.js';
 import { getSiteLists, siteIsEnabled } from './urlPattern.js';
 
@@ -270,6 +270,16 @@ const finish = async (details, error) => {
   }
 
   if (!isRecording) return;
+  // Chrome cancels blocked requests without a redirect; this one's own rule, if any.
+  if (error === 'net::ERR_BLOCKED_BY_CLIENT' && isOnEnabledSite(details)) {
+    const blocker = attributeBlock(await getCompiledRules(), details.url);
+    if (blocker) {
+      const record = baseEntry(details, 'block', blocker);
+      record.blocked = true;
+      addEntry(record);
+      return;
+    }
+  }
   const headerRules = matchHeaderRules(await getCompiledRules(), details.url);
   if (headerRules.length > 0 && !isOnEnabledSite(details)) return;
   headerRules.forEach(ruleEntry => {
@@ -299,8 +309,38 @@ export async function recordInjection(rule, sender, error) {
   addEntry(entry);
 }
 
+// Reported by the page's mock script (src/inject/mockShim.js, through mockBridge.js) for
+// every fetch / XHR call a mock rule answered; there's no network request to observe.
+const recordMock = async (request, sender) => {
+  await ready;
+  if (!isRecording) return;
+  const ruleEntry = (await getCompiledRules()).find(e => e.rule.id === request.ruleId && e.rule.type === 'mockRule');
+  if (!ruleEntry) return;
+  const entry = baseEntry({
+    tabId: sender.tab?.id ?? -1,
+    url: String(request.url || ''),
+    method: String(request.method || 'GET').toUpperCase(),
+    type: 'xmlhttprequest',
+    initiator: originOf(sender.url),
+    timeStamp: Date.now()
+  }, 'mock', ruleEntry);
+  entry.duration = Math.max(0, Number(request.delay) || 0);
+  if (ruleEntry.rule.mockMode === 'delay') {
+    entry.detail = `real response, delayed ${entry.duration} ms`;
+    entry.status = Number(request.status) || null;
+    if (request.error) entry.error = String(request.error);
+  } else {
+    entry.mocked = true;
+    entry.status = Number(request.status) || 200;
+    entry.detail = `mocked ${ruleEntry.rule.contentType || 'response'}`;
+  }
+  addEntry(entry);
+};
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'hudGetActivity') {
+  if (request.action === 'mockUsed' && sender.tab) {
+    recordMock(request, sender);
+  } else if (request.action === 'hudGetActivity') {
     ready.then(() => {
       const tabId = sender.tab?.id;
       const origin = originOf(sender.tab?.url);
