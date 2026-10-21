@@ -1,4 +1,5 @@
 import { getTargetHost, getTargetPort, setTargetPort } from '../extension/urlPattern.js';
+import { INJECT_TIMINGS, getInjectTiming } from './injections.js';
 
 export const RULE_GROUPS = [
   { value: 'redirects', label: 'URL Redirects', icon: 'i-lucide-shuffle', types: ['normalOverride'] },
@@ -32,7 +33,8 @@ export function getRuleSummary(rule) {
     return `${rule.match || 'All URLs'} · ${request} req / ${response} res`;
   }
   if (rule.type === 'fileInject') {
-    return `${(rule.fileType || 'js').toUpperCase()} into ${rule.injectLocation || 'head'}`;
+    const timing = INJECT_TIMINGS.find(t => t.value === getInjectTiming(rule)).phrase;
+    return rule.fileType === 'css' ? `CSS at ${timing}` : `JS into ${rule.injectLocation || 'head'} at ${timing}`;
   }
   return rule.match || 'No pattern yet';
 }

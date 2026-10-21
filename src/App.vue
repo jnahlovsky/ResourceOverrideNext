@@ -346,7 +346,7 @@ const deleteRuleFromDomain = async (domainId, ruleId) => {
   const isEmpty = rule && (
     (rule.type === 'normalOverride' && !rule.match && !rule.replace) ||
     ((rule.type === 'fileOverride' || rule.type === 'headerRule') && !rule.match) ||
-    (rule.type === 'fileInject' && !rule.fileName)
+    (rule.type === 'fileInject' && !rule.fileName && !rule.file)
   );
 
   if (isEmpty) {
@@ -371,6 +371,7 @@ const addEmptyRule = async (type) => {
     newRule.fileName = '';
     newRule.fileType = 'js';
     newRule.injectLocation = 'head';
+    newRule.injectTiming = 'start';
     newRule.file = '';
   } else if (type === 'headerRule') {
     newRule.match = '';

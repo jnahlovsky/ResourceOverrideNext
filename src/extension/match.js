@@ -130,7 +130,3 @@ export function matchReplace(pattern, replacePattern, str) {
 
     return replacePattern;
 }
-
-// Preserve backwards compatibility for background scripts that load this globally via service worker imports
-globalThis.match = match;
-globalThis.matchReplace = matchReplace;

@@ -1,17 +1,11 @@
 /* global bgapp, chrome */
 {
     bgapp.settings = {
-        isExtensionOn: "true",
-        devTools: "true",
-        showSuggestions: "true",
-        showLogs: "false"
+        isExtensionOn: "true"
     };
 
-    chrome.storage.local.get(["isExtensionOn", "devTools", "showSuggestions", "showLogs"], function(result) {
+    chrome.storage.local.get(["isExtensionOn"], function(result) {
         if (result.isExtensionOn !== undefined) bgapp.settings.isExtensionOn = result.isExtensionOn;
-        if (result.devTools !== undefined) bgapp.settings.devTools = result.devTools;
-        if (result.showSuggestions !== undefined) bgapp.settings.showSuggestions = result.showSuggestions;
-        if (result.showLogs !== undefined) bgapp.settings.showLogs = result.showLogs;
     });
 
     bgapp.getSetting = function(setting) {

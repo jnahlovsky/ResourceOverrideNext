@@ -75,6 +75,13 @@
             class="w-3.5 h-3.5 text-red-500"
             :title="`Not applied: ${ruleError}`"
           />
+          <UIcon
+            v-else-if="issues.length > 0"
+            name="i-lucide-circle-alert"
+            class="w-3.5 h-3.5"
+            :class="hasIssueErrors ? 'text-red-500' : 'text-amber-500'"
+            :title="issues.map(issue => issue.message).join('\n')"
+          />
         </div>
         <div class="flex items-center gap-3">
           <!-- Domain Filters Toggle -->
@@ -147,6 +154,18 @@
           <UIcon name="i-lucide-triangle-alert" class="w-3.5 h-3.5 shrink-0 mt-px" />
           <span><strong class="font-semibold">Chrome rejected this rule, so it isn't applied.</strong> {{ ruleError }}</span>
         </div>
+        <!-- Mistakes found while typing (src/lib/ruleValidation.js). -->
+        <ul v-if="issues.length > 0" class="mb-2 space-y-1">
+          <li
+            v-for="issue in issues"
+            :key="issue.message"
+            class="flex items-start gap-1.5 rounded-sm px-2 py-1.5 text-[12px]"
+            :class="issue.level === 'error' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'"
+          >
+            <UIcon :name="issue.level === 'error' ? 'i-lucide-circle-x' : 'i-lucide-circle-alert'" class="w-3.5 h-3.5 shrink-0 mt-px" />
+            <span>{{ issue.message }}</span>
+          </li>
+        </ul>
         <slot></slot>
 
         <!-- Domain Filters -->
@@ -184,6 +203,7 @@ import { ref, computed, watch, nextTick } from 'vue';
 import { getDomainFilters, getMatchMode, convertMatchMode, getTargetPort, setTargetPort, parsePortInput } from '../extension/urlPattern.js';
 import { canEditRulePort } from '../lib/ruleLabels.js';
 import { useRuleErrors } from '../composables/useRuleErrors.js';
+import { validateRule } from '../lib/ruleValidation.js';
 
 const props = defineProps({
   rule: {
@@ -245,6 +265,10 @@ const savePort = () => {
 };
 
 const { ruleErrors } = useRuleErrors();
+
+// Checked as you type: the cards edit a reactive copy of the rule.
+const issues = computed(() => validateRule(props.rule));
+const hasIssueErrors = computed(() => issues.value.some(issue => issue.level === 'error'));
 const ruleError = computed(() => (props.rule.on ? ruleErrors.value[props.rule.id] : '') || '');
 
 const hasActiveDomainFilters = computed(() => {

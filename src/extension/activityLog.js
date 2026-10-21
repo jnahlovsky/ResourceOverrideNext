@@ -6,7 +6,7 @@
 // The log is kept in chrome.storage.session: it survives the service worker being
 // stopped, and is gone when the browser closes.
 import { compileRules, attributeRedirect, matchHeaderRules, describeHeaderChanges, statusBucket } from '../lib/activity.js';
-import { getRuleSummary } from '../lib/ruleLabels.js';
+import { getRuleSummary, getRuleDisplayName } from '../lib/ruleLabels.js';
 import { getSiteLists, siteIsEnabled } from './urlPattern.js';
 
 const LOG_KEY = 'activityLog';
@@ -192,18 +192,23 @@ const finish = async (details, error) => {
 chrome.webRequest.onCompleted.addListener(details => finish(details, null), { urls: ['<all_urls>'] });
 chrome.webRequest.onErrorOccurred.addListener(details => finish(details, details.error), { urls: ['<all_urls>'] });
 
+// Called by src/extension/fileInjection.js for every injection it ran (or that failed).
+export async function recordInjection(rule, sender, error) {
+  await ready;
+  if (!isRecording) return;
+  const entry = baseEntry({ tabId: sender.tab?.id ?? -1, url: sender.url, method: '', type: 'main_frame' }, 'inject', {
+    rule,
+    name: getRuleDisplayName(rule)
+  });
+  entry.resourceType = (rule.fileType || 'js') === 'css' ? 'stylesheet' : 'script';
+  entry.initiator = originOf(sender.url);
+  entry.detail = getRuleSummary(rule);
+  if (error) entry.error = error;
+  addEntry(entry);
+}
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'activityInject') {
-    ready.then(async () => {
-      if (!isRecording) return;
-      const ruleEntry = (await getCompiledRules()).find(e => e.rule.id === request.ruleId);
-      if (!ruleEntry) return;
-      const entry = baseEntry({ tabId: sender.tab?.id ?? -1, url: request.url, method: '', type: 'main_frame' }, 'inject', ruleEntry);
-      entry.resourceType = (ruleEntry.rule.fileType || 'js') === 'css' ? 'stylesheet' : 'script';
-      entry.detail = getRuleSummary(ruleEntry.rule);
-      addEntry(entry);
-    });
-  } else if (request.action === 'hudGetActivity') {
+  if (request.action === 'hudGetActivity') {
     ready.then(() => {
       const tabId = sender.tab?.id;
       const origin = originOf(sender.tab?.url);

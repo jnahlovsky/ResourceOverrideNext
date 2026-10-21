@@ -1,4 +1,4 @@
-/* global bgapp, chrome, match */
+/* global bgapp, chrome */
 import { parsePortInput, setTargetPort } from './urlPattern.js';
 
 {
@@ -80,17 +80,12 @@ import { parsePortInput, setTargetPort } from './urlPattern.js';
             sendResponse();
         } else if (request.action === "getSetting") {
             sendResponse(bgapp.getSetting(request.setting));
-        } else if (request.action === "match") {
-            sendResponse(match(request.domainUrl, request.windowUrl).matched);
         } else if (request.action === "extractMimeType") {
             sendResponse(bgapp.extractMimeType(request.fileName, request.file));
         } else if (request.action === "updateDNRRules") {
             if (bgapp.updateDNRRules) {
                 bgapp.updateDNRRules();
             }
-            sendResponse();
-        } else if (request.action === "log") {
-            // Already handled by UI content script but we keep it here just in case
             sendResponse();
         }
 

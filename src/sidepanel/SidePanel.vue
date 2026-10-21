@@ -199,6 +199,13 @@
                             class="shrink-0 w-3.5 h-3.5 text-red-500"
                             :title="`Not applied: ${ruleErrors[rule.id]}`"
                           />
+                          <UIcon
+                            v-else-if="ruleIssues(rule).length > 0"
+                            name="i-lucide-circle-alert"
+                            class="shrink-0 w-3.5 h-3.5"
+                            :class="ruleIssues(rule).some(issue => issue.level === 'error') ? 'text-red-500' : 'text-amber-500'"
+                            :title="ruleIssues(rule).map(issue => issue.message).join('\n')"
+                          />
                           <template v-if="canEditRulePort(rule)">
                             <input
                               v-if="isEditing(rule, 'port')"
@@ -300,6 +307,7 @@ import FileInjectRule from '../components/FileInjectRule.vue';
 import { useRules } from '../composables/useRules';
 import { useRuleErrors } from '../composables/useRuleErrors.js';
 import ActivityLog from './ActivityLog.vue';
+import { validateRule } from '../lib/ruleValidation.js';
 import { RULE_GROUPS, getRuleDisplayName, getRuleSummary, getRulePort, canEditRulePort } from '../lib/ruleLabels.js';
 import { setTargetPort, parsePortInput } from '../extension/urlPattern.js';
 
@@ -311,6 +319,7 @@ const isSidePanel = props.context === 'sidepanel';
 
 const { globalDomain, isLoading, fetchDomains, saveDomain } = useRules();
 const { ruleErrors } = useRuleErrors();
+const ruleIssues = (rule) => validateRule(rule);
 
 const hasChrome = typeof chrome !== 'undefined' && !!chrome.runtime;
 

@@ -75,8 +75,8 @@ export function describeHeaderChanges(rule) {
 
 /** "200", "ERR", "…" style status bucket for filtering and colours. */
 export function statusBucket(entry) {
-  if (entry.type === 'inject' || entry.inline) return 'ok';
   if (entry.error) return 'error';
+  if (entry.type === 'inject' || entry.inline) return 'ok';
   if (entry.status === undefined || entry.status === null) return 'pending';
   if (entry.status >= 400) return 'error';
   return 'ok';

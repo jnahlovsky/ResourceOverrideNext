@@ -371,9 +371,9 @@ const formatTime = (time) => {
 const formatDuration = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(ms >= 10000 ? 0 : 1)}s` : `${ms}ms`);
 
 const statusLabel = (entry) => {
+  if (entry.error) return 'ERR';
   if (entry.type === 'inject') return 'DONE';
   if (entry.inline) return 'SERVED';
-  if (entry.error) return 'ERR';
   if (entry.status === undefined || entry.status === null) return '···';
   return entry.fromCache ? `${entry.status}·c` : String(entry.status);
 };

@@ -3,12 +3,12 @@ import './util.js';
 import './keyvalDB.js';
 import './mainStorage.js';
 import './settings.js';
-import './match.js';
 import './extractMime.js';
 import './messageListener.js';
 import './action.js';
 import { updateDNRRules } from './netRequestRules.js';
 import './activityLog.js';
+import './fileInjection.js';
 import { connectDevReload } from './devReload.js';
 
 globalThis.bgapp.updateDNRRules = updateDNRRules;

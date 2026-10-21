@@ -24,9 +24,6 @@ describe('messageListener', () => {
             extractMimeType: vi.fn()
         };
 
-        // Mock global match function
-        globalThis.match = vi.fn();
-
         // Mock chrome API
         globalThis.chrome = {
             runtime: {

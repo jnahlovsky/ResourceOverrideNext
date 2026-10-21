@@ -1,144 +1,44 @@
+/* global chrome */
+// File injections: asks the background which ones apply to this frame and, at each one's
+// timing, has it run them (src/extension/fileInjection.js). The injecting itself happens
+// there: in Manifest V3 a <script> added from a content script is blocked by the
+// extension's own CSP. No imports, so crxjs keeps this a plain document_start script.
 (function() {
     "use strict";
 
-    // Same rules as hostPassesDomainFilters in src/extension/urlPattern.js. Inlined because
-    // an import makes crxjs load this script asynchronously, delaying document_start injection.
-    var parseDomainList = function(value) {
-        return String(value || "").split(/[\s,;]+/).map(function(entry) {
-            return entry.trim().toLowerCase()
-                .replace(/^[a-z][a-z0-9+.-]*:\/\//, "")
-                .replace(/[\/?#].*$/, "")
-                .replace(/:\d+$/, "")
-                .replace(/^\*\./, "")
-                .replace(/\.$/, "");
-        }).filter(Boolean);
-    };
-
-    var hostPassesDomainFilters = function(rule, host) {
-        if (!rule.domainFiltersOn) return true;
-        var matches = function(domain) {
-            return host === domain || host.endsWith("." + domain);
-        };
-        var include = parseDomainList(rule.includeDomains);
-        if (parseDomainList(rule.excludeDomains).some(matches)) return false;
-        return include.length === 0 || include.some(matches);
-    };
-
-    // Settings → Sites; same as getSiteLists / siteIsEnabled in src/extension/urlPattern.js.
-    var parseSites = function(value) {
-        return String(value || "").split(/[\s,;]+/).map(function(entry) {
-            return entry.trim().toLowerCase()
-                .replace(/^[a-z][a-z0-9+.-]*:\/\//, "")
-                .replace(/[\/?#].*$/, "")
-                .replace(/:\d+$/, "")
-                .replace(/\.$/, "");
-        }).filter(Boolean);
-    };
-
-    var siteMatchesHost = function(pattern, host) {
-        var domain = pattern.replace(/^\*\./, "");
-        if (domain.indexOf("*") === -1) return host === domain || host.endsWith("." + domain);
-        var regex = "^" + pattern.replace(/[.+?^${}()|[\]\\\/]/g, "\\$&").replace(/\*/g, "[^/?#@:]*") + "$";
-        return new RegExp(regex).test(host);
-    };
-
-    var siteIsEnabled = function(allowList, blockList, host) {
-        host = String(host || "").toLowerCase();
-        // Only plain domains can limit the network rules, so only those count here too.
-        var allow = parseSites(allowList).filter(function(pattern) {
-            return pattern.replace(/^\*\./, "").indexOf("*") === -1;
-        });
-        var matches = function(pattern) {
-            return siteMatchesHost(pattern, host);
-        };
-        if (parseSites(blockList).some(matches)) return false;
-        return allow.length === 0 || allow.some(matches);
-    };
-
-    var fileTypeToTag = {
-        js: "script",
-        css: "style"
-    };
-
-    var processDomain = function(domain) {
-        var rules = domain.rules || [];
-        rules.forEach(function(rule) {
-            if (rule.on && rule.type === "fileInject" && hostPassesDomainFilters(rule, location.hostname)) {
-                var newEl = document.createElement(fileTypeToTag[rule.fileType] || "script");
-                
-                if (rule.fileName) {
-                    newEl.setAttribute("id", "resourced-inject-" + rule.fileName.replace(/[^a-zA-Z0-9_-]/g, ''));
-                }
-
-                if (rule.fileType === "js" && rule.fileName) {
-                    // Inject JS via a blob URL if a filename is provided (acts as external script)
-                    // The filename is used to uniquely identify the injection
-                    const blob = new Blob([rule.file], { type: 'application/javascript' });
-                    newEl.src = URL.createObjectURL(blob);
-                    
-                    newEl.onload = function() {
-                        URL.revokeObjectURL(newEl.src);
-                    };
-                } else {
-                    // Default inline injection (how it worked before). 
-                    // Note: Chrome Extensions page will occasionally log a CSP warning for this, 
-                    // but it often still works depending on the target site's strictness.
-                    newEl.appendChild(document.createTextNode(rule.file));
-                }
-
-                // Shown in the side panel's activity log.
-                chrome.runtime.sendMessage({ action: "activityInject", ruleId: rule.id, url: location.href }).catch(function() {});
-
-                if (rule.injectLocation === "head") {
-                    var firstEl = document.head.children[0];
-                    if (firstEl) {
-                        document.head.insertBefore(newEl, firstEl);
-                    } else {
-                        document.head.appendChild(newEl);
-                    }
-                } else {
-                    if (document.body) {
-                        document.body.appendChild(newEl);
-                    } else {
-                        document.addEventListener("DOMContentLoaded", function() {
-                            document.body.appendChild(newEl);
-                        });
-                    }
-                }
+    var whenReady = {
+        start: function(run) {
+            run();
+        },
+        ready: function(run) {
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", run, { once: true });
+            } else {
+                run();
             }
-        });
+        },
+        loaded: function(run) {
+            if (document.readyState === "complete") {
+                run();
+            } else {
+                window.addEventListener("load", run, { once: true });
+            }
+        }
     };
 
-    var injectRules = function() {
-        chrome.runtime.sendMessage({action: "getDomains"}, function(domains) {
-            domains = domains || [];
-            domains.forEach(function(domain) {
-                if (domain.on) {
-                    chrome.runtime.sendMessage({
-                        action: "match",
-                        domainUrl: domain.matchUrl,
-                        windowUrl: location.href
-                    }, function(result) {
-                        if (result) {
-                            processDomain(domain);
-                        }
-                    });
-                }
+    // One at a time, so injections with the same timing run in the rules' order.
+    var queue = Promise.resolve();
+    var inject = function(ruleId) {
+        queue = queue.then(function() {
+            return chrome.runtime.sendMessage({ action: "injectFile", ruleId: ruleId });
+        }).catch(function() {});
+    };
+
+    chrome.runtime.sendMessage({ action: "getInjections" }).then(function(injections) {
+        (injections || []).forEach(function(injection) {
+            (whenReady[injection.timing] || whenReady.start)(function() {
+                inject(injection.id);
             });
         });
-    };
-
-    chrome.storage.local.get(["siteAllowlist", "siteBlocklist"], function(settings) {
-        if (siteIsEnabled(settings.siteAllowlist, settings.siteBlocklist, location.hostname)) injectRules();
-    });
-
-    chrome.runtime.onMessage.addListener(function(msg) {
-        if (msg.action === 'log') {
-            var logStyle = "color: #007182; font-weight: bold;";
-            if (msg.important) {
-                logStyle += "background: #AAFFFF;";
-            }
-            console.log("%c[Resource Override] " + msg.message, logStyle);
-        }
-    });
+    }).catch(function() {});
 })();
