@@ -1,14 +1,19 @@
 <template>
-  <div class="group relative mb-2">
+  <!-- `bare`: just the body and the Filter / match syntax controls, for the expanded rows
+       of the popup and side panel, which show the name, port and switch themselves. -->
+  <div class="group relative" :class="!bare && 'mb-2'">
     <!-- Drag Handle -->
-    <div class="absolute -left-5 top-1/2 -translate-y-1/2 w-5 flex justify-center flex-shrink-0 z-10">
+    <div v-if="!bare" class="absolute -left-5 top-1/2 -translate-y-1/2 w-5 flex justify-center flex-shrink-0 z-10">
       <UIcon name="i-lucide-grip-vertical" class="drag-handle w-4 h-4 text-slate-400 cursor-grab opacity-0 group-hover:opacity-100 transition-opacity" />
     </div>
     
-    <div class="w-full rounded-md border border-slate-200 shadow-sm bg-white transition-colors overflow-hidden" :class="!rule.on ? 'opacity-70 grayscale-[20%]' : ''">
+    <div
+      class="w-full bg-white transition-colors"
+      :class="bare ? '' : ['rounded-md border border-slate-200 shadow-sm overflow-hidden', !rule.on && 'opacity-70 grayscale-[20%]']"
+    >
       <!-- Header Area -->
-      <div class="flex items-center justify-between px-2.5 py-1.5 bg-slate-200 rounded-t-md">
-        <div class="flex items-center gap-2">
+      <div class="flex items-center" :class="bare ? 'justify-end pb-1.5' : 'justify-between px-2.5 py-1.5 bg-slate-200 rounded-t-md'">
+        <div v-if="!bare" class="flex items-center gap-2">
           <!-- Title / Editor -->
           <input 
             v-if="isEditingTitle" 
@@ -79,7 +84,9 @@
             :title="domainFiltersTitle"
             @click="emit('update-options', { domainFiltersOn: !rule.domainFiltersOn })"
             class="h-6 px-2 inline-flex items-center gap-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors"
-            :class="rule.domainFiltersOn ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-300'"
+            :class="rule.domainFiltersOn
+              ? (bare ? 'bg-slate-200 text-slate-700' : 'bg-white text-slate-700 shadow-sm')
+              : (bare ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-300')"
           >
             <UIcon name="i-lucide-funnel" class="w-3 h-3" />
             Filter
@@ -105,35 +112,37 @@
               {{ option.label }}
             </button>
           </div>
-          <div v-if="hasUrlPattern" class="w-px h-4 bg-slate-300"></div>
-          <!-- Collapse Toggle -->
-          <UButton
-            variant="ghost"
-            :icon="rule.isCollapsed ? 'i-lucide-chevron-down' : 'i-lucide-chevron-up'"
-            @click="$emit('update-collapse', !rule.isCollapsed)"
-            class="text-slate-500 hover:text-slate-700 hover:bg-slate-300 rounded-md w-6 h-6 p-0 flex justify-center items-center transition-colors"
-          />
-          <UButton
-            variant="ghost"
-            icon="i-lucide-trash-2"
-            @click="$emit('delete')"
-            class="text-slate-500 hover:text-red-500 hover:bg-slate-300 rounded-md w-6 h-6 p-0 flex justify-center items-center transition-colors"
-          />
-          <div class="w-px h-4 bg-slate-300"></div>
-          <div class="flex items-center gap-2">
-            <USwitch
-              :model-value="rule.on"
-              @update:model-value="$emit('toggle', $event)"
-              size="sm"
-              color="success"
-              :ui="{ inactive: 'bg-slate-400' }"
+          <template v-if="!bare">
+            <div v-if="hasUrlPattern" class="w-px h-4 bg-slate-300"></div>
+            <!-- Collapse Toggle -->
+            <UButton
+              variant="ghost"
+              :icon="rule.isCollapsed ? 'i-lucide-chevron-down' : 'i-lucide-chevron-up'"
+              @click="$emit('update-collapse', !rule.isCollapsed)"
+              class="text-slate-500 hover:text-slate-700 hover:bg-slate-300 rounded-md w-6 h-6 p-0 flex justify-center items-center transition-colors"
             />
-          </div>
+            <UButton
+              variant="ghost"
+              icon="i-lucide-trash-2"
+              @click="$emit('delete')"
+              class="text-slate-500 hover:text-red-500 hover:bg-slate-300 rounded-md w-6 h-6 p-0 flex justify-center items-center transition-colors"
+            />
+            <div class="w-px h-4 bg-slate-300"></div>
+            <div class="flex items-center gap-2">
+              <USwitch
+                :model-value="rule.on"
+                @update:model-value="$emit('toggle', $event)"
+                size="sm"
+                color="success"
+                :ui="{ inactive: 'bg-slate-400' }"
+              />
+            </div>
+          </template>
         </div>
       </div>
 
       <!-- Main Content Area -->
-      <div v-show="!rule.isCollapsed" class="p-2 w-full">
+      <div v-show="bare || !rule.isCollapsed" class="w-full" :class="!bare && 'p-2'">
         <div v-if="ruleError" class="mb-2 flex items-start gap-1.5 rounded-sm bg-red-50 px-2 py-1.5 text-[12px] text-red-700">
           <UIcon name="i-lucide-triangle-alert" class="w-3.5 h-3.5 shrink-0 mt-px" />
           <span><strong class="font-semibold">Chrome rejected this rule, so it isn't applied.</strong> {{ ruleError }}</span>
@@ -180,6 +189,10 @@ const props = defineProps({
   rule: {
     type: Object,
     required: true
+  },
+  bare: {
+    type: Boolean,
+    default: false
   }
 });
 

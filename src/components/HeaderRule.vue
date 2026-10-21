@@ -51,7 +51,8 @@
       </div>
 
       <!-- Headers List -->
-      <div class="flex flex-col gap-1.5 bg-slate-50 p-2 rounded-md border border-slate-200 min-h-[40px]">
+      <!-- A container, so rows can wrap in the narrow popup / side panel (@max-md). -->
+      <div class="@container flex flex-col gap-1.5 bg-slate-50 p-2 rounded-md border border-slate-200 min-h-[40px]">
         <div v-if="combinedRules.length === 0" class="text-center text-slate-400 text-[11px] py-1">
           No headers configured. Add a request or response header above.
         </div>
@@ -59,7 +60,7 @@
         <div 
           v-for="(headerRow, index) in combinedRules" 
           :key="headerRow._id" 
-          class="flex items-center gap-1.5"
+          class="flex flex-wrap items-center gap-1.5"
           :style="{ zIndex: combinedRules.length - index }"
         >
           <!-- Type Select -->
@@ -86,7 +87,7 @@
           <UInput 
             v-model="headerRow.header" 
             placeholder="Name" 
-            class="flex-1"
+            class="flex-1 @max-md:order-last @max-md:basis-[calc(50%-0.1875rem)]"
             size="sm"
           />
 
@@ -95,7 +96,7 @@
             v-model="headerRow.value" 
             :placeholder="headerRow.operation === 'remove' ? 'Not needed' : 'Value'" 
             :disabled="headerRow.operation === 'remove'"
-            class="flex-1"
+            class="flex-1 @max-md:order-last @max-md:basis-[calc(50%-0.1875rem)]"
             size="sm"
           />
 
@@ -105,7 +106,7 @@
             variant="ghost" 
             icon="i-lucide-trash-2" 
             size="2xs"
-            class="w-6 h-6 p-0 flex justify-center items-center"
+            class="w-6 h-6 p-0 flex justify-center items-center @max-md:ml-auto"
             @click="removeRule(index)"
           />
         </div>

@@ -46,6 +46,15 @@
             :class="isSidePanelOpen ? 'text-primary-600 hover:text-primary-700' : 'text-slate-400 hover:text-slate-700'"
             @click="toggleSidePanel"
           />
+          <UButton
+            variant="ghost"
+            color="neutral"
+            size="xs"
+            icon="i-lucide-settings"
+            title="Settings"
+            class="text-slate-400 hover:text-slate-700"
+            @click="openSettings"
+          />
         </div>
         <USwitch
           :model-value="isExtensionOn"
@@ -103,101 +112,152 @@
           </div>
         </Transition>
 
-        <div v-if="!isLoading && visibleRules.length === 0" class="flex flex-col items-center text-center gap-2 text-slate-400 py-12 px-3">
-          <UIcon :name="activeGroupInfo.icon" class="w-7 h-7" />
-          <span class="text-[12px]">No {{ activeGroupInfo.label.toLowerCase() }} yet.</span>
-        </div>
-
-        <ul v-else :class="isCompact ? 'space-y-1' : 'space-y-1.5'">
-          <li
-            v-for="rule in visibleRules"
-            :key="rule.id"
-            class="group flex items-center bg-white rounded-md border border-slate-200 shadow-xs transition-opacity"
-            :class="[
-              isCompact ? 'gap-2 pl-2.5 pr-2 py-1.5' : 'gap-3 pl-3 pr-2.5 py-2 @max-2xs:gap-2 @max-2xs:pl-2 @max-2xs:pr-1.5',
-              (!rule.on || !isExtensionOn) && 'opacity-60'
-            ]"
-            :title="`${getRuleDisplayName(rule)} · ${getRuleSummary(rule)}`"
+        <!-- Every tab's list sits in the same grid cell and only the active one is visible,
+             so the area is as tall as the longest list and switching tabs doesn't resize it. -->
+        <div class="grid">
+          <section
+            v-for="group in RULE_GROUPS"
+            :key="group.value"
+            role="tabpanel"
+            :aria-label="group.label"
+            :aria-hidden="activeGroup !== group.value"
+            class="[grid-area:1/1] min-w-0"
+            :class="activeGroup !== group.value && 'invisible'"
           >
-            <span
-              class="w-1.5 h-1.5 rounded-full shrink-0 transition-colors @max-2xs:hidden"
-              :class="rule.on && isExtensionOn ? 'bg-primary-500 ring-[3px] ring-primary-500/20' : 'bg-slate-300'"
-            ></span>
-            <div class="min-w-0 flex-1">
-              <!-- Name and port are editable in place: click, type, Enter (Esc cancels). -->
-              <div class="flex items-center gap-1.5 min-w-0">
-                <input
-                  v-if="isEditing(rule, 'name')"
-                  v-model="editDraft"
-                  data-inline-edit
-                  :placeholder="getRuleDisplayName(rule)"
-                  aria-label="Rule name"
-                  class="min-w-0 flex-1 font-semibold leading-5 text-slate-800 bg-white border border-primary-300 rounded px-1 -mx-1 outline-none"
-                  :class="isCompact ? 'text-[12px]' : 'text-[13px]'"
-                  @blur="commitEdit"
-                  @keydown.enter.prevent="commitEdit"
-                  @keydown.esc.prevent="cancelEdit"
-                />
-                <button
-                  v-else
-                  type="button"
-                  class="min-w-0 truncate text-left cursor-text font-semibold leading-5 text-slate-800 hover:text-slate-950"
-                  :class="isCompact ? 'text-[12px]' : 'text-[13px]'"
-                  title="Click to rename"
-                  @click="startEdit(rule, 'name')"
-                >{{ getRuleDisplayName(rule) }}</button>
-
-                <UIcon
-                  v-if="rule.on && ruleErrors[rule.id]"
-                  name="i-lucide-triangle-alert"
-                  class="shrink-0 w-3.5 h-3.5 text-red-500"
-                  :title="`Not applied: ${ruleErrors[rule.id]} Open the editor to fix it.`"
-                />
-                <template v-if="canEditRulePort(rule)">
-                  <input
-                    v-if="isEditing(rule, 'port')"
-                    v-model="editDraft"
-                    data-inline-edit
-                    inputmode="numeric"
-                    maxlength="5"
-                    placeholder="port"
-                    aria-label="Destination port"
-                    class="shrink-0 w-[7ch] font-mono text-[10px] font-semibold leading-4 px-1 rounded bg-white border border-primary-300 text-primary-700 outline-none"
-                    @blur="commitEdit"
-                    @keydown.enter.prevent="commitEdit"
-                    @keydown.esc.prevent="cancelEdit"
-                  />
-                  <button
-                    v-else-if="getRulePort(rule)"
-                    type="button"
-                    class="shrink-0 cursor-text font-mono text-[10px] font-semibold leading-4 px-1.5 rounded bg-primary-100 text-primary-700 hover:bg-primary-200 transition-colors"
-                    :title="`Redirects to port ${getRulePort(rule)}. Click to change it.`"
-                    @click="startEdit(rule, 'port')"
-                  >:{{ getRulePort(rule) }}</button>
-                  <button
-                    v-else
-                    type="button"
-                    class="shrink-0 cursor-text font-mono text-[10px] font-semibold leading-4 px-1.5 rounded border border-dashed border-slate-300 text-slate-400 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-slate-700 transition-opacity"
-                    title="Add a port to the destination URL"
-                    @click="startEdit(rule, 'port')"
-                  >+port</button>
-                </template>
-              </div>
-              <div v-if="!isCompact" class="text-[11px] font-mono text-slate-400 truncate @max-xs:hidden">
-                <span v-if="rule.type === 'fileOverride' || rule.type === 'fileInject'" class="font-sans font-medium text-slate-500">{{ getRuleTypeLabel(rule.type) }} · </span>{{ getRuleSummary(rule) }}
-              </div>
+            <div v-if="!isLoading && groupRules[group.value].length === 0" class="flex flex-col items-center text-center gap-2 text-slate-400 py-12 px-3">
+              <UIcon :name="group.icon" class="w-7 h-7" />
+              <span class="text-[12px]">No {{ group.label.toLowerCase() }} yet.</span>
             </div>
-            <USwitch
-              :model-value="rule.on"
-              @update:model-value="(on) => toggleRule(rule, on)"
-              color="success"
-              size="sm"
-              class="shrink-0"
-              :ui="{ inactive: 'bg-slate-400' }"
-              :aria-label="`Toggle ${getRuleDisplayName(rule)}`"
-            />
-          </li>
-        </ul>
+
+            <draggable
+              v-else
+              tag="ul"
+              :model-value="groupRules[group.value]"
+              @update:model-value="(list) => reorderGroup(group, list)"
+              item-key="id"
+              handle=".drag-handle"
+              :animation="150"
+              :class="isCompact ? 'space-y-1' : 'space-y-1.5'"
+            >
+              <template #item="{ element: rule }">
+                <li class="group bg-white rounded-md border shadow-xs transition-colors" :class="expandedId === rule.id ? 'border-slate-300' : 'border-slate-200'">
+                  <!-- Clicking the row opens the rule's full fields below it (one at a time). -->
+                  <div
+                    class="flex items-center cursor-pointer transition-opacity"
+                    :class="[
+                      isCompact ? 'gap-1.5 pl-1 pr-2 py-1.5' : 'gap-2 pl-1 pr-2.5 py-2 @max-2xs:gap-1.5 @max-2xs:pr-1.5',
+                      (!rule.on || !isExtensionOn) && 'opacity-60'
+                    ]"
+                    :title="`${getRuleDisplayName(rule)} · ${getRuleSummary(rule)}`"
+                    @click="toggleExpanded(rule)"
+                  >
+                    <UIcon
+                      name="i-lucide-grip-vertical"
+                      class="drag-handle shrink-0 w-4 h-4 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing"
+                      title="Drag to reorder"
+                      @click.stop
+                    />
+                    <div class="min-w-0 flex-1">
+                      <!-- Name and port are editable in place: click, type, Enter (Esc cancels). -->
+                      <div class="flex items-center gap-1.5 min-w-0">
+                        <input
+                          v-if="isEditing(rule, 'name')"
+                          v-model="editDraft"
+                          data-inline-edit
+                          :placeholder="getRuleDisplayName(rule)"
+                          aria-label="Rule name"
+                          class="min-w-0 flex-1 font-semibold leading-5 text-slate-800 bg-white border border-primary-300 rounded px-1 -mx-1 outline-none"
+                          :class="isCompact ? 'text-[12px]' : 'text-[13px]'"
+                          @click.stop
+                          @blur="commitEdit"
+                          @keydown.enter.prevent="commitEdit"
+                          @keydown.esc.prevent="cancelEdit"
+                        />
+                        <button
+                          v-else
+                          type="button"
+                          class="min-w-0 truncate text-left cursor-text font-semibold leading-5 text-slate-800 hover:text-slate-950"
+                          :class="isCompact ? 'text-[12px]' : 'text-[13px]'"
+                          title="Click to rename"
+                          @click.stop="startEdit(rule, 'name')"
+                        >{{ getRuleDisplayName(rule) }}</button>
+
+                        <UIcon
+                          v-if="rule.on && ruleErrors[rule.id]"
+                          name="i-lucide-triangle-alert"
+                          class="shrink-0 w-3.5 h-3.5 text-red-500"
+                          :title="`Not applied: ${ruleErrors[rule.id]}`"
+                        />
+                        <template v-if="canEditRulePort(rule)">
+                          <input
+                            v-if="isEditing(rule, 'port')"
+                            v-model="editDraft"
+                            data-inline-edit
+                            inputmode="numeric"
+                            maxlength="5"
+                            placeholder="port"
+                            aria-label="Destination port"
+                            class="shrink-0 w-[7ch] font-mono text-[10px] font-semibold leading-4 px-1 rounded bg-white border border-primary-300 text-primary-700 outline-none"
+                            @click.stop
+                            @blur="commitEdit"
+                            @keydown.enter.prevent="commitEdit"
+                            @keydown.esc.prevent="cancelEdit"
+                          />
+                          <button
+                            v-else-if="getRulePort(rule)"
+                            type="button"
+                            class="shrink-0 cursor-text font-mono text-[10px] font-semibold leading-4 px-1.5 rounded bg-primary-100 text-primary-700 hover:bg-primary-200 transition-colors"
+                            :title="`Redirects to port ${getRulePort(rule)}. Click to change it.`"
+                            @click.stop="startEdit(rule, 'port')"
+                          >:{{ getRulePort(rule) }}</button>
+                          <button
+                            v-else
+                            type="button"
+                            class="shrink-0 cursor-text font-mono text-[10px] font-semibold leading-4 px-1.5 rounded border border-dashed border-slate-300 text-slate-400 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-slate-700 transition-opacity"
+                            title="Add a port to the destination URL"
+                            @click.stop="startEdit(rule, 'port')"
+                          >+port</button>
+                        </template>
+                      </div>
+                      <div v-if="!isCompact" class="text-[11px] font-mono text-slate-400 truncate @max-xs:hidden">
+                        <span v-if="rule.type === 'fileOverride' || rule.type === 'fileInject'" class="font-sans font-medium text-slate-500">{{ getRuleTypeLabel(rule.type) }} · </span>{{ getRuleSummary(rule) }}
+                      </div>
+                    </div>
+                    <USwitch
+                      :model-value="rule.on"
+                      @update:model-value="(on) => toggleRule(rule, on)"
+                      @click.stop
+                      color="success"
+                      size="sm"
+                      class="shrink-0"
+                      :ui="{ inactive: 'bg-slate-400' }"
+                      :aria-label="`Toggle ${getRuleDisplayName(rule)}`"
+                    />
+                    <button
+                      type="button"
+                      class="shrink-0 -mr-1 flex items-center justify-center w-5 h-5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                      :aria-expanded="expandedId === rule.id"
+                      :aria-label="`${expandedId === rule.id ? 'Hide' : 'Show'} the fields of ${getRuleDisplayName(rule)}`"
+                      @click.stop="toggleExpanded(rule)"
+                    >
+                      <UIcon name="i-lucide-chevron-down" class="w-4 h-4 transition-transform" :class="expandedId === rule.id && 'rotate-180'" />
+                    </button>
+                  </div>
+
+                  <div v-if="expandedId === rule.id" class="border-t border-slate-200 px-2 pt-1.5 pb-2">
+                    <component
+                      :is="RULE_EDITORS[rule.type]"
+                      :rule="rule"
+                      bare
+                      @update="(updated) => updateRule(rule.id, updated)"
+                      @edit-file="openEditor"
+                    />
+                  </div>
+                </li>
+              </template>
+            </draggable>
+          </section>
+        </div>
       </main>
 
       <!-- Footer -->
@@ -220,7 +280,12 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
+import draggable from 'vuedraggable';
+import RedirectRule from '../components/RedirectRule.vue';
+import HeaderRule from '../components/HeaderRule.vue';
+import FileOverrideRule from '../components/FileOverrideRule.vue';
+import FileInjectRule from '../components/FileInjectRule.vue';
 import { useRules } from '../composables/useRules';
 import { useRuleErrors } from '../composables/useRuleErrors.js';
 import { RULE_GROUPS, getRuleDisplayName, getRuleSummary, getRulePort, getRuleTypeLabel, canEditRulePort } from '../lib/ruleLabels.js';
@@ -242,8 +307,41 @@ const isExtensionOn = ref(null);
 const windowId = ref(null);
 
 const rules = computed(() => globalDomain.value?.rules || []);
-const activeGroupInfo = computed(() => RULE_GROUPS.find(group => group.value === activeGroup.value));
-const visibleRules = computed(() => rules.value.filter(rule => activeGroupInfo.value.types.includes(rule.type)));
+const groupRules = computed(() => Object.fromEntries(RULE_GROUPS.map(group =>
+  [group.value, rules.value.filter(rule => group.types.includes(rule.type))]
+)));
+
+// Same order handling as the editor: the dragged group goes after the other rules.
+const reorderGroup = async (group, reordered) => {
+  if (!globalDomain.value) return;
+  const otherRules = rules.value.filter(rule => !group.types.includes(rule.type));
+  globalDomain.value.rules = [...otherRules, ...reordered];
+  await saveDomain(globalDomain.value);
+};
+
+// The editor's rule cards, without their header (the row has the name, port and switch).
+const RULE_EDITORS = {
+  normalOverride: RedirectRule,
+  headerRule: HeaderRule,
+  fileOverride: FileOverrideRule,
+  fileInject: FileInjectRule
+};
+
+const expandedId = ref(null);
+const toggleExpanded = (rule) => {
+  expandedId.value = expandedId.value === rule.id ? null : rule.id;
+};
+watch(activeGroup, () => {
+  expandedId.value = null;
+});
+
+const updateRule = async (ruleId, updated) => {
+  if (!globalDomain.value) return;
+  const index = globalDomain.value.rules.findIndex(rule => rule.id === ruleId);
+  if (index === -1) return;
+  globalDomain.value.rules[index] = updated;
+  await saveDomain(globalDomain.value);
+};
 
 // "enabled / total" per tab.
 const groupCounts = computed(() => Object.fromEntries(RULE_GROUPS.map(group => {
@@ -346,6 +444,11 @@ const toggleSidePanel = () => {
 
 const openEditor = () => {
   if (hasChrome) chrome.tabs.create({ url: chrome.runtime.getURL('index.html?tab=true') });
+};
+
+// Settings live in the editor; ?open=settings shows them when it loads (App.vue).
+const openSettings = () => {
+  if (hasChrome) chrome.tabs.create({ url: chrome.runtime.getURL('index.html?tab=true&open=settings') });
 };
 
 // Lets the Settings screen show whether the panel is open in its window.

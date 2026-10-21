@@ -264,6 +264,9 @@ const handleConfirmCancel = () => {
 };
 
 onMounted(async () => {
+  // Opened from the popup / side panel's settings button.
+  if (new URLSearchParams(window.location.search).get('open') === 'settings') isSettingsOpen.value = true;
+
   await fetchDomains();
 
   // Rules can also be toggled from the side panel; reload so a later save here
