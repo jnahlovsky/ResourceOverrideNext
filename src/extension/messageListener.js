@@ -38,7 +38,9 @@ import { parsePortInput, setTargetPort } from './urlPattern.js';
             updateRuleFromHud(request).then(() => sendResponse()).catch(simpleError);
             return true; // async
         } else if (request.action === "saveDomain") {
-            bgapp.mainStorage.put(request.data)
+            // The version history keeps the rules from before this change (backups.js).
+            (bgapp.backups ? bgapp.backups.beforeChange() : Promise.resolve())
+                .then(() => bgapp.mainStorage.put(request.data))
                 .then(syncAllInstances)
                 .catch(simpleError);
             bgapp.ruleDomains[request.data.id] = request.data;

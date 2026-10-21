@@ -129,6 +129,8 @@ import { RULE_EDITORS } from './components/ruleEditors.js';
 import { RULE_GROUPS, RULE_TYPES, newRule, isRuleEmpty } from './lib/ruleLabels.js';
 import { RULE_TEMPLATES, ruleFromTemplate } from './lib/templates.js';
 import TemplatePicker from './components/TemplatePicker.vue';
+import { importRulesFrom } from './lib/importers.js';
+import { snapshotRules } from './composables/useBackups.js';
 import CodeEditorModal from './components/CodeEditorModal.vue';
 import HelpModal from './components/HelpModal.vue';
 import SettingsModal from './components/SettingsModal.vue';
@@ -225,20 +227,7 @@ onMounted(async () => {
           if (!file) return;
 
           const reader = new FileReader();
-          reader.onload = (event) => {
-              try {
-                  const data = JSON.parse(event.target.result);
-                  if (Array.isArray(data)) {
-                      importRules(data).then(() => {
-                        showAlert("Rules successfully imported and applied.", "Import Successful");
-                      });
-                  } else {
-                      showAlert("Invalid JSON format. Expected an array of domains.", "Import Failed");
-                  }
-              } catch (err) {
-                  showAlert("Failed to parse the JSON file. Ensure it is a valid Resource Override export.", "Import Failed");
-              }
-          };
+          reader.onload = (event) => importFromText(event.target.result);
           reader.readAsText(file);
           fileInput.value = "";
       });
@@ -317,6 +306,31 @@ const addMenuItems = computed(() => [
     }))
   ]
 ]);
+
+// Rules from Resourced, Resource Override, Requestly or Redirector files are added to the
+// list (src/lib/importers.js); the summary says what came over and what didn't.
+const importFromText = async (text) => {
+  let result;
+  try {
+    result = importRulesFrom(JSON.parse(text));
+  } catch (err) {
+    showAlert(err instanceof SyntaxError ? "The file isn't valid JSON." : err.message, 'Import failed');
+    return;
+  }
+  if (result.rules.length > 0) {
+    await snapshotRules('Before import');
+    await fetchDomains();
+    const target = globalDomain.value || { id: 'd' + Date.now(), matchUrl: '*', on: true, rules: [] };
+    target.rules = [...(target.rules || []), ...result.rules];
+    await saveDomain(target);
+  }
+  const lines = [`${result.rules.length} rule${result.rules.length === 1 ? '' : 's'} imported from ${result.source}.`];
+  if (result.skipped.length > 0) {
+    lines.push('', `Skipped ${result.skipped.length}:`, ...result.skipped.map(item => `• ${item.name}: ${item.reason}`));
+  }
+  if (result.notes.length > 0) lines.push('', 'Good to know:', ...result.notes.map(note => `• ${note}`));
+  showAlert(lines.join('\n'), result.rules.length > 0 ? 'Import done' : 'Nothing imported');
+};
 
 const handleImport = () => {
   document.getElementById('fileInput')?.click();

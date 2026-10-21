@@ -8,9 +8,7 @@
       </div>
 
       <!-- Content -->
-      <div class="px-5 py-6 text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap">
-        {{ message }}
-      </div>
+      <div class="px-5 py-6 text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-[60vh] overflow-y-auto">{{ message }}</div>
 
       <!-- Footer -->
       <div class="px-5 py-3 border-t border-slate-100 flex justify-end gap-2 bg-slate-50">
