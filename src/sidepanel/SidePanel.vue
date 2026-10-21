@@ -18,11 +18,11 @@
             variant="ghost"
             color="neutral"
             size="xs"
-            :icon="isCompact ? 'i-lucide-unfold-vertical' : 'i-lucide-fold-vertical'"
-            :title="isCompact ? 'Show details' : 'Compact list'"
-            :aria-pressed="isCompact"
-            class="text-slate-500 hover:text-slate-800"
-            @click="toggleCompact"
+            :icon="isExpandAll ? 'i-lucide-fold-vertical' : 'i-lucide-unfold-vertical'"
+            :title="isExpandAll ? 'Back to one rule open at a time' : 'Open every rule for editing'"
+            :aria-pressed="isExpandAll"
+            :class="isExpandAll ? 'text-primary-600 hover:text-primary-700' : 'text-slate-500 hover:text-slate-800'"
+            @click="toggleExpandAll"
           />
           <!-- Page HUD on/off; same setting as in the editor's Settings. -->
           <UButton
@@ -152,17 +152,15 @@
                 item-key="id"
                 handle=".drag-handle"
                 :animation="150"
-                :class="isCompact ? 'space-y-1' : 'space-y-1.5'"
+                class="space-y-1"
               >
                 <template #item="{ element: rule }">
-                  <li class="group bg-white rounded-md border shadow-xs transition-colors" :class="expandedId === rule.id ? 'border-slate-300' : 'border-slate-200'">
-                    <!-- Clicking the row opens the rule's full fields below it (one at a time). -->
+                  <li class="group bg-white rounded-md border shadow-xs transition-colors" :class="isExpanded(rule) ? 'border-slate-300' : 'border-slate-200'">
+                    <!-- One line per rule; clicking it opens the rule's full fields below it, one
+                         at a time, unless "open every rule" is on. -->
                     <div
-                      class="flex items-center cursor-pointer transition-opacity"
-                      :class="[
-                        isCompact ? 'gap-1.5 pl-1 pr-2 py-1.5' : 'gap-2 pl-1 pr-2.5 py-2 @max-2xs:gap-1.5 @max-2xs:pr-1.5',
-                        (!rule.on || !isExtensionOn) && 'opacity-60'
-                      ]"
+                      class="flex items-center gap-1.5 pl-1 pr-2 py-1.5 transition-opacity"
+                      :class="[!isExpandAll && 'cursor-pointer', (!rule.on || !isExtensionOn) && 'opacity-60']"
                       :title="`${getRuleDisplayName(rule)} · ${getRuleSummary(rule)}`"
                       @click="toggleExpanded(rule)"
                     >
@@ -181,8 +179,7 @@
                             data-inline-edit
                             :placeholder="getRuleDisplayName(rule)"
                             aria-label="Rule name"
-                            class="min-w-0 flex-1 font-semibold leading-5 text-slate-800 bg-white border border-primary-300 rounded px-1 -mx-1 outline-none"
-                            :class="isCompact ? 'text-[12px]' : 'text-[13px]'"
+                            class="min-w-0 flex-1 text-[12px] font-semibold leading-5 text-slate-800 bg-white border border-primary-300 rounded px-1 -mx-1 outline-none"
                             @click.stop
                             @blur="commitEdit"
                             @keydown.enter.prevent="commitEdit"
@@ -191,8 +188,7 @@
                           <button
                             v-else
                             type="button"
-                            class="min-w-0 truncate text-left cursor-text font-semibold leading-5 text-slate-800 hover:text-slate-950"
-                            :class="isCompact ? 'text-[12px]' : 'text-[13px]'"
+                            class="min-w-0 truncate text-left cursor-text text-[12px] font-semibold leading-5 text-slate-800 hover:text-slate-950"
                             title="Click to rename"
                             @click.stop="startEdit(rule, 'name')"
                           >{{ getRuleDisplayName(rule) }}</button>
@@ -234,9 +230,6 @@
                             >+port</button>
                           </template>
                         </div>
-                        <div v-if="!isCompact" class="text-[11px] font-mono text-slate-400 truncate @max-xs:hidden">
-                          <span v-if="rule.type === 'fileOverride' || rule.type === 'fileInject'" class="font-sans font-medium text-slate-500">{{ getRuleTypeLabel(rule.type) }} · </span>{{ getRuleSummary(rule) }}
-                        </div>
                       </div>
                       <USwitch
                         :model-value="rule.on"
@@ -250,16 +243,18 @@
                       />
                       <button
                         type="button"
-                        class="shrink-0 -mr-1 flex items-center justify-center w-5 h-5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-                        :aria-expanded="expandedId === rule.id"
-                        :aria-label="`${expandedId === rule.id ? 'Hide' : 'Show'} the fields of ${getRuleDisplayName(rule)}`"
+                        class="shrink-0 -mr-1 flex items-center justify-center w-5 h-5 rounded text-slate-400 enabled:hover:text-slate-700 enabled:hover:bg-slate-100 disabled:opacity-40"
+                        :disabled="isExpandAll"
+                        :aria-expanded="isExpanded(rule)"
+                        :aria-label="`${isExpanded(rule) ? 'Hide' : 'Show'} the fields of ${getRuleDisplayName(rule)}`"
+                        :title="isExpandAll ? 'Every rule stays open; turn it off in the header to collapse' : ''"
                         @click.stop="toggleExpanded(rule)"
                       >
-                        <UIcon name="i-lucide-chevron-down" class="w-4 h-4 transition-transform" :class="expandedId === rule.id && 'rotate-180'" />
+                        <UIcon name="i-lucide-chevron-down" class="w-4 h-4 transition-transform" :class="isExpanded(rule) && 'rotate-180'" />
                       </button>
                     </div>
 
-                    <div v-if="expandedId === rule.id" class="border-t border-slate-200 px-2 pt-1.5 pb-2">
+                    <div v-if="isExpanded(rule)" class="border-t border-slate-200 px-2 pt-1.5 pb-2">
                       <component
                         :is="RULE_EDITORS[rule.type]"
                         :rule="rule"
@@ -305,7 +300,7 @@ import FileInjectRule from '../components/FileInjectRule.vue';
 import { useRules } from '../composables/useRules';
 import { useRuleErrors } from '../composables/useRuleErrors.js';
 import ActivityLog from './ActivityLog.vue';
-import { RULE_GROUPS, getRuleDisplayName, getRuleSummary, getRulePort, getRuleTypeLabel, canEditRulePort } from '../lib/ruleLabels.js';
+import { RULE_GROUPS, getRuleDisplayName, getRuleSummary, getRulePort, canEditRulePort } from '../lib/ruleLabels.js';
 import { setTargetPort, parsePortInput } from '../extension/urlPattern.js';
 
 // Also the toolbar popup (popup.html): both are for quick on/off, the editor is for edits.
@@ -344,8 +339,30 @@ const RULE_EDITORS = {
   fileInject: FileInjectRule
 };
 
+// Either one rule open at a time (accordion), or every rule open and staying open.
+// The latter is remembered per browser profile.
+const EXPAND_ALL_KEY = 'resourced:sidepanel-expand-all';
+const readExpandAll = () => {
+  try {
+    return localStorage.getItem(EXPAND_ALL_KEY) === 'true';
+  } catch (e) {
+    return false;
+  }
+};
+const isExpandAll = ref(readExpandAll());
+const toggleExpandAll = () => {
+  isExpandAll.value = !isExpandAll.value;
+  try {
+    localStorage.setItem(EXPAND_ALL_KEY, String(isExpandAll.value));
+  } catch (e) {
+    // Storage unavailable; the choice just isn't remembered.
+  }
+};
+
 const expandedId = ref(null);
+const isExpanded = (rule) => isExpandAll.value || expandedId.value === rule.id;
 const toggleExpanded = (rule) => {
+  if (isExpandAll.value) return;
   expandedId.value = expandedId.value === rule.id ? null : rule.id;
 };
 watch(activeGroup, () => {
@@ -366,25 +383,6 @@ const groupCounts = computed(() => Object.fromEntries(RULE_GROUPS.map(group => {
   const enabled = groupRules.filter(rule => rule.on).length;
   return [group.value, groupRules.length === 0 ? '0' : `${enabled}/${groupRules.length}`];
 })));
-
-// Compact rows: one line per rule, no details. Remembered per browser profile.
-const COMPACT_KEY = 'resourced:sidepanel-compact';
-const readCompact = () => {
-  try {
-    return localStorage.getItem(COMPACT_KEY) === 'true';
-  } catch (e) {
-    return false;
-  }
-};
-const isCompact = ref(readCompact());
-const toggleCompact = () => {
-  isCompact.value = !isCompact.value;
-  try {
-    localStorage.setItem(COMPACT_KEY, String(isCompact.value));
-  } catch (e) {
-    // Storage unavailable; the choice just isn't remembered.
-  }
-};
 
 const toggleRule = async (rule, on) => {
   rule.on = on;
