@@ -17,9 +17,10 @@
         <h4 class="text-lg font-bold text-slate-900 mb-2 border-b border-slate-200 pb-2">1. URL Redirects</h4>
         <p class="mb-3">Redirects network requests from one URL to another. Useful for testing local code on a production website.</p>
         <ul class="list-disc pl-5 space-y-2">
-          <li><strong>Standard Match:</strong> Enter a substring (e.g., <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">example.com/api</code>). Any request containing this string will be redirected.</li>
-          <li><strong>Regex Match:</strong> Enclose your pattern in forward slashes (e.g., <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">/https:\/\/example\.com\/(.*)/</code>).</li>
-          <li><strong>Destination URL:</strong> The URL to redirect to. If using Regex, you can use capture groups like <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">$1</code> (e.g., <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">http://localhost:8080/$1</code>).</li>
+          <li><strong>Wildcard / Regex:</strong> Pick the pattern syntax with the switch in the card header. Switching converts the patterns for you where possible.</li>
+          <li><strong>Wildcard:</strong> A substring where <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">*</code> matches anything (e.g., <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">example.com/api</code>). Use <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">*</code> or <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">**</code> in both fields to carry the matched part over (e.g. <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">*/app/**</code> → <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">http://localhost:8080/app/**</code>). Groups pair up by star count, in order.</li>
+          <li><strong>Regex:</strong> A regular expression (e.g., <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">https:\/\/example\.com\/(.*)</code>); use capture groups like <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">$1</code> in the destination (e.g., <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">http://localhost:8080/$1</code>).</li>
+          <li><strong>Destination URL:</strong> The URL to redirect to. Its port is shown next to the rule name.</li>
         </ul>
       </section>
 
@@ -55,6 +56,8 @@
         <h4 class="text-lg font-bold text-slate-900 mb-2 border-b border-slate-200 pb-2">Tips & Tricks</h4>
         <ul class="list-disc pl-5 space-y-2">
           <li><strong>Live Editing:</strong> To develop locally without constantly pasting code into the extension, run a local server (e.g., <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">npx serve</code>) and use a <strong>URL Redirect</strong> rule to point the production file to your localhost.</li>
+          <li><strong>Domain Filters:</strong> Enable <em>Domain filters</em> in a card's <strong>⋮</strong> menu to limit a rule to some request domains or exclude others (comma separated, subdomains included), e.g. exclude <code class="bg-slate-200 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">localhost</code> so a redirect never re-applies to its own destination.</li>
+          <li><strong>Page HUD:</strong> Active redirects are listed in a small overlay at the top of each page; hover it to hide it. Turn it off or change its opacity in <strong>Settings</strong>.</li>
           <li><strong>Master Switch:</strong> Use the toggle in the top right of the header to quickly disable all rules at once without deleting them.</li>
         </ul>
       </section>

@@ -95,7 +95,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { match, matchReplace } from '../extension/match.js';
+import { buildUrlMatch, evaluateUrlMatch, hostPassesDomainFilters } from '../extension/urlPattern.js';
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -127,8 +127,16 @@ const matchingRules = computed(() => {
 
   const results = [];
 
+  let testHost = '';
+  try {
+    testHost = new URL(testUrl.value).hostname;
+  } catch (e) {
+    // Not a full URL yet; domain filters can't match a missing host.
+  }
+
   for (const rule of props.rules) {
     if (!rule.on) continue;
+    if (!hostPassesDomainFilters(rule, testHost)) continue;
 
     // fileInject rules don't use the standard match logic, they are injected on all domains matching the parent domain.
     // In our simplified UI where domain is '*' global, fileInject applies everywhere.
@@ -137,16 +145,10 @@ const matchingRules = computed(() => {
       continue;
     }
 
-    const matchPattern = rule.match || '*';
-    const matchData = match(matchPattern, testUrl.value);
-
-    if (matchData && matchData.matched) {
-      let details = {};
-
-      if (rule.type === 'normalOverride') {
-        details.redirectUrl = matchReplace(matchData, rule.replace || '', testUrl.value);
-      }
-
+    // Evaluated with the same condition that is registered with Chrome.
+    const result = evaluateUrlMatch(buildUrlMatch(rule), testUrl.value);
+    if (result.matched) {
+      const details = rule.type === 'normalOverride' ? { redirectUrl: result.redirectUrl } : {};
       results.push({ rule, details });
     }
   }

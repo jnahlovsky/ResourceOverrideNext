@@ -1,10 +1,11 @@
 <template>
   <RuleCard 
-    :rule="rule" 
+    :rule="localRule"
     @toggle="toggle" 
     @delete="remove"
     @update-collapse="(val) => { localRule.isCollapsed = val; save(); }"
     @update-name="(name) => { localRule.name = name; save(); }"
+    @update-options="(patch) => { Object.assign(localRule, patch); save(); }"
   >
     <div class="flex items-center gap-2">
       <UTextarea 
@@ -13,8 +14,9 @@
         autoresize
         :rows="1"
         :maxrows="5"
-        placeholder="Match URL (e.g. *://example.com/*)" 
-        class="font-mono text-[12px] flex-1" 
+        :placeholder="isRegex ? 'Match regex, e.g. https:\\/\\/example\\.com\\/.*\\.css' : 'Match URL, e.g. *://example.com/styles.css'" 
+        size="sm"
+        class="font-mono flex-1" 
         :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none py-1 min-h-[28px]', wrapper: 'flex-1' }" 
       />
       
@@ -30,8 +32,9 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import RuleCard from './RuleCard.vue';
+import { getMatchMode } from '../extension/urlPattern.js';
 
 const props = defineProps({
   rule: { type: Object, required: true }
@@ -39,6 +42,7 @@ const props = defineProps({
 const emit = defineEmits(['update', 'delete', 'edit-file']);
 
 const localRule = ref({ ...props.rule });
+const isRegex = computed(() => getMatchMode(localRule.value) === 'regex');
 
 watch(() => props.rule, (newVal) => {
   localRule.value = { ...newVal };

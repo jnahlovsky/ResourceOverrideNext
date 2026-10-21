@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import matchReplace from '../src/extension/match.js';
+import { matchReplace } from '../src/extension/match.js';
 
 describe('matchReplace function', () => {
     it('supports standard star syntax replacements', () => {

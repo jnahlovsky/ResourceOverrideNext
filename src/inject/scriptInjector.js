@@ -1,6 +1,29 @@
 (function() {
     "use strict";
 
+    // Same rules as hostPassesDomainFilters in src/extension/urlPattern.js. Inlined because
+    // an import makes crxjs load this script asynchronously, delaying document_start injection.
+    var parseDomainList = function(value) {
+        return String(value || "").split(/[\s,;]+/).map(function(entry) {
+            return entry.trim().toLowerCase()
+                .replace(/^[a-z][a-z0-9+.-]*:\/\//, "")
+                .replace(/[\/?#].*$/, "")
+                .replace(/:\d+$/, "")
+                .replace(/^\*\./, "")
+                .replace(/\.$/, "");
+        }).filter(Boolean);
+    };
+
+    var hostPassesDomainFilters = function(rule, host) {
+        if (!rule.domainFiltersOn) return true;
+        var matches = function(domain) {
+            return host === domain || host.endsWith("." + domain);
+        };
+        var include = parseDomainList(rule.includeDomains);
+        if (parseDomainList(rule.excludeDomains).some(matches)) return false;
+        return include.length === 0 || include.some(matches);
+    };
+
     var fileTypeToTag = {
         js: "script",
         css: "style"
@@ -9,7 +32,7 @@
     var processDomain = function(domain) {
         var rules = domain.rules || [];
         rules.forEach(function(rule) {
-            if (rule.on && rule.type === "fileInject") {
+            if (rule.on && rule.type === "fileInject" && hostPassesDomainFilters(rule, location.hostname)) {
                 var newEl = document.createElement(fileTypeToTag[rule.fileType] || "script");
                 
                 if (rule.fileName) {

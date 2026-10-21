@@ -112,6 +112,9 @@
           <UButton variant="ghost" color="neutral" size="sm" class="font-medium text-slate-600" icon="i-lucide-help-circle" @click="handleHelp">
             Help
           </UButton>
+          <UButton variant="ghost" color="neutral" size="sm" class="font-medium text-slate-600" icon="i-lucide-settings" @click="isSettingsOpen = true">
+            Settings
+          </UButton>
         </div>
         <div class="flex gap-2 items-center">
           <UButton variant="ghost" color="neutral" size="sm" class="font-medium text-slate-600" icon="i-lucide-download" @click="handleImport">Import</UButton>
@@ -150,6 +153,9 @@
     <!-- Help Modal -->
     <HelpModal v-model="isHelpOpen" />
 
+    <!-- Settings Modal -->
+    <SettingsModal v-model="isSettingsOpen" :rules="globalRules" />
+
     <!-- Test Rules Modal -->
     <TestRulesModal v-model="isTestOpen" :rules="globalRules" />
 
@@ -180,6 +186,7 @@ import FileOverrideRule from './components/FileOverrideRule.vue';
 import FileInjectRule from './components/FileInjectRule.vue';
 import CodeEditorModal from './components/CodeEditorModal.vue';
 import HelpModal from './components/HelpModal.vue';
+import SettingsModal from './components/SettingsModal.vue';
 import ConfirmModal from './components/ConfirmModal.vue';
 import TestRulesModal from './components/TestRulesModal.vue';
 
@@ -201,6 +208,9 @@ const editingRuleId = ref(null);
 
 // Help Modal state
 const isHelpOpen = ref(false);
+
+// Settings Modal state
+const isSettingsOpen = ref(false);
 
 // Test Rules state
 const isTestOpen = ref(false);
@@ -255,6 +265,14 @@ const handleConfirmCancel = () => {
 
 onMounted(async () => {
   await fetchDomains();
+
+  // Rules can also be toggled from the side panel; reload so a later save here
+  // doesn't write back stale values.
+  if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg.action === 'dataUpdated') fetchDomains();
+    });
+  }
 
   const fileInput = document.getElementById('fileInput');
   if (fileInput) {

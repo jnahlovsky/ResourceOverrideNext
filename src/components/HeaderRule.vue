@@ -1,10 +1,11 @@
 <template>
   <RuleCard 
-    :rule="rule" 
+    :rule="localRule"
     @toggle="toggle" 
     @delete="remove"
     @update-collapse="(val) => { localRule.isCollapsed = val; save(); }"
     @update-name="(name) => { localRule.name = name; save(); }"
+    @update-options="(patch) => { Object.assign(localRule, patch); save(); }"
   >
     <div class="flex flex-col gap-1.5">
       <!-- Top Row: Match URL -->
@@ -15,8 +16,9 @@
           autoresize
           :rows="1"
           :maxrows="5"
-          placeholder="Source URL Pattern (e.g. example.com or /.*example.*\.com/.*/)" 
-          class="font-mono text-[12px] flex-1" 
+          :placeholder="isRegex ? 'Source regex, e.g. https:\\/\\/(.*\\.)?example\\.com\\/api\\/.*' : 'Source URL, e.g. example.com/api/* (empty or * = all)'" 
+          size="sm"
+          class="font-mono flex-1" 
           :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none py-1 min-h-[28px]', wrapper: 'flex-1' }" 
         />
       </div>
@@ -63,7 +65,7 @@
           <!-- Type Select -->
           <select 
             v-model="headerRow.type" 
-            class="w-[100px] h-7 text-[12px] rounded-md border-0 ring-1 ring-inset ring-slate-300 bg-white pl-2 pr-6 appearance-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 text-slate-700 shadow-sm bg-no-repeat bg-[right_0.4rem_center] bg-[length:12px_12px]"
+            class="w-[100px] h-7 text-sm rounded-md border-0 ring-1 ring-inset ring-slate-300 bg-white pl-2 pr-6 appearance-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 text-slate-700 shadow-sm bg-no-repeat bg-[right_0.4rem_center] bg-[length:12px_12px]"
             style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22 fill=%22%2364748b%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z%22 clip-rule=%22evenodd%22/%3E%3C/svg%3E');"
           >
             <option value="request">Request</option>
@@ -73,7 +75,7 @@
           <!-- Operation Select -->
           <select 
             v-model="headerRow.operation" 
-            class="w-[85px] h-7 text-[12px] rounded-md border-0 ring-1 ring-inset ring-slate-300 bg-white pl-2 pr-6 appearance-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 text-slate-700 shadow-sm bg-no-repeat bg-[right_0.4rem_center] bg-[length:12px_12px]"
+            class="w-[85px] h-7 text-sm rounded-md border-0 ring-1 ring-inset ring-slate-300 bg-white pl-2 pr-6 appearance-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 text-slate-700 shadow-sm bg-no-repeat bg-[right_0.4rem_center] bg-[length:12px_12px]"
             style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22 fill=%22%2364748b%22%3E%3Cpath fill-rule=%22evenodd%22 d=%22M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z%22 clip-rule=%22evenodd%22/%3E%3C/svg%3E');"
           >
             <option value="set">Set</option>
@@ -114,8 +116,9 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import RuleCard from './RuleCard.vue';
+import { getMatchMode } from '../extension/urlPattern.js';
 
 const props = defineProps({
   rule: { type: Object, required: true }
@@ -123,6 +126,7 @@ const props = defineProps({
 const emit = defineEmits(['update', 'delete']);
 
 const localRule = ref({ ...props.rule });
+const isRegex = computed(() => getMatchMode(localRule.value) === 'regex');
 
 // Internal state to hold combined rules for the UI
 const combinedRules = ref([]);

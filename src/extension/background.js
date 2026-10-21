@@ -8,8 +8,12 @@ import './extractMime.js';
 import './messageListener.js';
 import './action.js';
 import { updateDNRRules } from './netRequestRules.js';
+import { connectDevReload } from './devReload.js';
 
 globalThis.bgapp.updateDNRRules = updateDNRRules;
+
+// `npm run watch` only; null in other builds.
+if (__DEV_RELOAD__) connectDevReload(__DEV_RELOAD__);
 
 chrome.runtime.onInstalled.addListener(() => {
     console.log("Resource Override MV3 Service Worker installed.");
@@ -20,6 +24,11 @@ chrome.runtime.onInstalled.addListener(() => {
         title: "Open Resource Override in New Tab",
         contexts: ["action"]
     });
+});
+
+// Keeps the rules and the page HUD's list in sync after a browser restart.
+chrome.runtime.onStartup.addListener(() => {
+    updateDNRRules();
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {

@@ -19,6 +19,11 @@
 
 @custom-variant dark (&:is(.dark *));
 
+html {
+    /* Keep native controls (selects, scrollbars) light regardless of OS theme */
+    color-scheme: light;
+}
+
 body {
     font-family: 'Geist', sans-serif;
     min-width: 650px;
