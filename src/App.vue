@@ -26,8 +26,9 @@
               </div>
 
               <div class="flex-1 min-h-0 flex flex-col">
-                <div v-if="!isLoading && groupLists[item.value].value.length === 0" class="text-center py-8 text-slate-400">
-                  No {{ item.label.toLowerCase() }} rules yet.
+                <div v-if="!isLoading && groupLists[item.value].value.length === 0" class="max-w-3xl w-full mx-auto py-4">
+                  <p class="mb-5 text-center text-slate-400">No rules here yet.</p>
+                  <TemplatePicker :group="item.value" @use="addFromTemplate" />
                 </div>
 
                 <draggable
@@ -72,10 +73,9 @@
             Test Rules
           </UButton>
 
-          <!-- One kind of rule in the tab: a button; several: a menu of them. -->
+          <!-- The tab's kinds of rule, then its templates. -->
           <UDropdownMenu
-            v-if="activeGroup.types.length > 1"
-            :items="activeGroup.types.map(type => ({ label: RULE_TYPES[type].label, description: RULE_TYPES[type].description, icon: RULE_TYPES[type].icon, onSelect: () => addEmptyRule(type) }))"
+            :items="addMenuItems"
             :content="{ side: 'top', align: 'end', sideOffset: 8 }"
             :ui="{ content: 'z-[100] w-80' }"
           >
@@ -83,10 +83,6 @@
               Add Rule
             </UButton>
           </UDropdownMenu>
-
-          <UButton v-else color="primary" @click="addEmptyRule(activeGroup.types[0])" class="font-semibold px-4 h-9 shadow-sm" icon="i-lucide-plus">
-            Add Rule
-          </UButton>
         </div>
       </div>
       <input type="file" id="fileInput" accept=".json" class="hidden">
@@ -131,6 +127,8 @@ import { useRules } from './composables/useRules';
 import AppHeader from './components/AppHeader.vue';
 import { RULE_EDITORS } from './components/ruleEditors.js';
 import { RULE_GROUPS, RULE_TYPES, newRule, isRuleEmpty } from './lib/ruleLabels.js';
+import { RULE_TEMPLATES, ruleFromTemplate } from './lib/templates.js';
+import TemplatePicker from './components/TemplatePicker.vue';
 import CodeEditorModal from './components/CodeEditorModal.vue';
 import HelpModal from './components/HelpModal.vue';
 import SettingsModal from './components/SettingsModal.vue';
@@ -296,6 +294,29 @@ const deleteRuleFromDomain = async (domainId, ruleId) => {
 const addEmptyRule = async (type) => {
   await saveGlobalRule(newRule(type));
 };
+
+const addFromTemplate = async (template, variant) => {
+  await saveGlobalRule(ruleFromTemplate(template, '', variant));
+};
+
+const addMenuItems = computed(() => [
+  activeGroup.value.types.map(type => ({
+    label: RULE_TYPES[type].label,
+    description: RULE_TYPES[type].description,
+    icon: RULE_TYPES[type].icon,
+    onSelect: () => addEmptyRule(type)
+  })),
+  [
+    { label: 'From a template', type: 'label' },
+    ...RULE_TEMPLATES.filter(template => template.group === activeGroup.value.value).map(template => ({
+      label: template.title,
+      icon: template.icon,
+      ...(template.variants
+        ? { children: template.variants.map(variant => ({ label: variant.label, onSelect: () => addFromTemplate(template, variant.id) })) }
+        : { onSelect: () => addFromTemplate(template, '') })
+    }))
+  ]
+]);
 
 const handleImport = () => {
   document.getElementById('fileInput')?.click();

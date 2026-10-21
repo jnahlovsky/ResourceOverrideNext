@@ -28,6 +28,7 @@ declare module 'vue' {
     RuleControls: typeof import('./src/components/RuleControls.vue')['default']
     SaveStatus: typeof import('./src/components/SaveStatus.vue')['default']
     SettingsModal: typeof import('./src/components/SettingsModal.vue')['default']
+    TemplatePicker: typeof import('./src/components/TemplatePicker.vue')['default']
     TestRulesModal: typeof import('./src/components/TestRulesModal.vue')['default']
     UApp: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/App.vue')['default']
     UBadge: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Badge.vue')['default']

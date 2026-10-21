@@ -140,9 +140,12 @@
               class="[grid-area:1/1] min-w-0"
               :class="activeGroup !== group.value && 'invisible'"
             >
-              <div v-if="!isLoading && groupRules[group.value].length === 0" class="flex flex-col items-center text-center gap-2 text-slate-400 py-12 px-3">
-                <UIcon :name="group.icon" class="w-7 h-7" />
-                <span class="text-[12px]">No {{ group.label.toLowerCase() }} yet.</span>
+              <div v-if="!isLoading && groupRules[group.value].length === 0" class="px-1 py-3">
+                <p class="flex items-center justify-center gap-1.5 mb-3 text-[12px] text-slate-400">
+                  <UIcon :name="group.icon" class="w-4 h-4" />
+                  No rules here yet.
+                </p>
+                <TemplatePicker compact :group="group.value" @use="addFromTemplate" />
               </div>
 
               <draggable
@@ -327,6 +330,8 @@ import { useRuleErrors } from '../composables/useRuleErrors.js';
 import ActivityLog from './ActivityLog.vue';
 import RuleControls from '../components/RuleControls.vue';
 import SaveStatus from '../components/SaveStatus.vue';
+import TemplatePicker from '../components/TemplatePicker.vue';
+import { ruleFromTemplate } from '../lib/templates.js';
 import { validateRule } from '../lib/ruleValidation.js';
 import { RULE_GROUPS, getRuleDisplayName, getRuleSummary, getRulePort, canEditRulePort } from '../lib/ruleLabels.js';
 import { setTargetPort, parsePortInput, getDomainFilters } from '../extension/urlPattern.js';
@@ -337,7 +342,7 @@ const props = defineProps({
 });
 const isSidePanel = props.context === 'sidepanel';
 
-const { globalDomain, isLoading, fetchDomains, saveDomain } = useRules();
+const { globalDomain, isLoading, fetchDomains, saveDomain, saveGlobalRule } = useRules();
 const { ruleErrors } = useRuleErrors();
 const ruleIssues = (rule) => validateRule(rule);
 const hasActiveDomainFilters = (rule) => {
@@ -409,6 +414,16 @@ const toggleExpanded = (rule) => {
 watch(activeGroup, () => {
   expandedId.value = null;
 });
+
+// The current tab's site, for templates like "Remove this site's CSP".
+const currentSite = ref('');
+
+// A template's rule is added and opened, so it can be adjusted right away.
+const addFromTemplate = async (template, variant) => {
+  const rule = ruleFromTemplate(template, currentSite.value, variant);
+  await saveGlobalRule(rule);
+  if (!isExpandAll.value && rule.id) expandedId.value = rule.id;
+};
 
 // The open row's filter / syntax controls; its fields (RuleCard bare) follow the rule.
 const updateRuleOptions = async (rule, patch) => {
@@ -572,6 +587,14 @@ onMounted(async () => {
     chrome.windows.getCurrent()
   ]);
   windowId.value = win.id;
+  chrome.tabs.query({ active: true, windowId: win.id }).then(([tab]) => {
+    try {
+      const url = new URL(tab?.url || '');
+      if (/^https?:$/.test(url.protocol)) currentSite.value = url.hostname;
+    } catch (e) {
+      // Not a web page (e.g. a new tab); templates use a placeholder.
+    }
+  }).catch(() => {});
   if (isSidePanelSupported && !isSidePanel) {
     const panels = await chrome.runtime.getContexts({ contextTypes: ['SIDE_PANEL'], windowIds: [win.id] });
     isSidePanelOpen.value = panels.length > 0;

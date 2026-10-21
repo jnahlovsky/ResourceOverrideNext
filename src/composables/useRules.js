@@ -50,19 +50,15 @@ export function useRules() {
   const saveGlobalRule = async (newRule) => {
     await fetchDomains();
     let currentGlobal = domains.value.find(d => d.matchUrl === "*");
+    // The caller can find the new rule by this id (e.g. to open it).
+    if (!newRule.id) newRule.id = 'r' + Date.now();
 
     if (currentGlobal) {
       currentGlobal.rules = currentGlobal.rules || [];
-      // If it has an id update it, else push
-      if (newRule.id) {
-          const idx = currentGlobal.rules.findIndex(r => r.id === newRule.id);
-          if (idx !== -1) currentGlobal.rules[idx] = newRule;
-          else currentGlobal.rules.push(newRule);
-      } else {
-          // generate temporary ID for UI, background saves might not care or handle it
-          newRule.id = 'r' + Date.now();
-          currentGlobal.rules.push(newRule);
-      }
+      // An existing rule is replaced, a new one added.
+      const idx = currentGlobal.rules.findIndex(r => r.id === newRule.id);
+      if (idx !== -1) currentGlobal.rules[idx] = newRule;
+      else currentGlobal.rules.push(newRule);
     } else {
       let maxId = 0;
       domains.value.forEach(d => {
@@ -77,7 +73,7 @@ export function useRules() {
           id: nextId,
           matchUrl: "*",
           on: true,
-          rules: [{ ...newRule, id: 'r' + Date.now() }]
+          rules: [{ ...newRule }]
       };
     }
     await saveDomain(currentGlobal);
