@@ -23,6 +23,27 @@
       <!-- Content Area -->
       <div class="flex-1 overflow-y-auto p-8 bg-slate-50 text-[13px] text-slate-700 space-y-8">
         <section>
+          <div class="flex items-center justify-between gap-6">
+            <span>
+              <h4 class="text-lg font-bold text-slate-900 mb-1">Appearance</h4>
+              <p class="text-slate-500">The editor, popup and side panel. System follows your computer's setting.</p>
+            </span>
+            <div role="radiogroup" aria-label="Appearance" class="shrink-0 flex rounded-md bg-slate-100 p-0.5 ring-1 ring-slate-200">
+              <button
+                v-for="option in THEMES"
+                :key="option.value"
+                type="button"
+                role="radio"
+                :aria-checked="theme === option.value"
+                class="h-7 px-3 rounded text-[12px] font-semibold transition-colors"
+                :class="theme === option.value ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
+                @click="setTheme(option.value)"
+              >{{ option.label }}</button>
+            </div>
+          </div>
+        </section>
+
+        <section>
           <h4 class="text-lg font-bold text-slate-900 mb-1">Sites</h4>
           <p class="text-slate-500 mb-4">
             Where your rules work at all: redirects, header changes, file overrides and injections, and the HUD.
@@ -90,7 +111,8 @@
           </p>
 
           <!-- Preview: your redirects, as the HUD would show them with these settings. -->
-          <div class="mb-4 rounded-md border border-dashed border-slate-300 bg-[repeating-linear-gradient(45deg,#f1f5f9_0_10px,#e2e8f0_10px_20px)] min-h-24 relative overflow-hidden px-3 pt-3 pb-8">
+          <!-- keep-colors: the HUD looks the same in dark mode. -->
+          <div class="keep-colors mb-4 rounded-md border border-dashed border-slate-300 bg-[repeating-linear-gradient(45deg,#f1f5f9_0_10px,#e2e8f0_10px_20px)] min-h-24 relative overflow-hidden px-3 pt-3 pb-8">
             <span class="absolute bottom-2 left-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
               Preview{{ previewRedirects.isExample ? ' · example redirects' : '' }}{{ settings.hudShowCounts || settings.hudOnlyUsed ? ' · example counts' : '' }}
             </span>
@@ -267,6 +289,7 @@
 <script setup>
 import { useModal } from '../composables/useModal.js';
 import RulesDataSettings from './RulesDataSettings.vue';
+import { THEMES } from '../lib/theme.js';
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { buildUrlMatch, getTargetPort, parseSiteList, isAllowlistSupported } from '../extension/urlPattern.js';
 import { getRuleDisplayName, canEditRulePort } from '../lib/ruleLabels.js';
@@ -311,7 +334,8 @@ const hasStorage = () => typeof chrome !== 'undefined' && chrome.storage?.local;
 
 const load = () => {
   if (!hasStorage()) return;
-  chrome.storage.local.get([...Object.keys(HUD_DEFAULTS), 'siteAllowlist', 'siteBlocklist', 'siteErrors'], (result) => {
+  chrome.storage.local.get([...Object.keys(HUD_DEFAULTS), 'siteAllowlist', 'siteBlocklist', 'siteErrors', 'theme'], (result) => {
+    theme.value = result.theme || 'system';
     settings.value = { ...HUD_DEFAULTS, ...result };
     hudSitesDraft.value = settings.value.hudSites;
     siteDrafts.value = { siteAllowlist: result.siteAllowlist || '', siteBlocklist: result.siteBlocklist || '' };
@@ -326,6 +350,13 @@ const update = (key, value) => {
 };
 
 const hudSitesDraft = ref('');
+
+// Applied by every page through src/lib/theme.js, which watches this setting.
+const theme = ref('system');
+const setTheme = (value) => {
+  theme.value = value;
+  if (hasStorage()) chrome.storage.local.set({ theme: value });
+};
 
 const SITE_LISTS = [
   {

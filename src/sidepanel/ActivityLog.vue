@@ -1,7 +1,7 @@
 <template>
   <!-- What the rules did to real requests, newest first, terminal style. Recorded by
        src/extension/activityLog.js into chrome.storage.session. -->
-  <div class="activity @container flex flex-col min-h-0 h-full font-mono text-[12px] leading-[18px] text-[#c8f5d4] bg-[#0a0f14]">
+  <div class="activity keep-colors @container flex flex-col min-h-0 h-full font-mono text-[12px] leading-[18px] text-[#c8f5d4] bg-[#0a0f14]">
     <!-- Toolbar -->
     <div class="shrink-0 space-y-2 border-b border-white/[0.06] bg-[#0d141b] px-2.5 py-2">
       <label class="flex items-center gap-2 h-8 rounded-md bg-black/40 px-2.5 ring-1 ring-white/10 focus-within:ring-emerald-400/50 transition-shadow">

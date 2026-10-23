@@ -2,11 +2,15 @@ import { createApp } from 'vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import ui from '@nuxt/ui/vue-plugin'
 import { installTooltips } from '../lib/tooltips.js'
+import { installTheme } from '../lib/theme.js'
 import { connectDevReload } from '../extension/devReload.js'
 import SidePanel from './SidePanel.vue'
 import '../assets/main.css'
 
 // popup.html reuses this entry and marks itself on <body>.
+// Before the first render, so a dark page doesn't flash light.
+installTheme()
+
 const app = createApp(SidePanel, { context: document.body.dataset.context || 'sidepanel' })
 const router = createRouter({
   routes: [],
