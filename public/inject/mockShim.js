@@ -1,8 +1,10 @@
 // Mock responses (mockRule) for the page's fetch() and XMLHttpRequest calls. Runs in the
-// page's own world at document_start, before the page's scripts. The mocks come from the
-// extension's side (src/inject/mockBridge.js), which also gets a report of each one used,
-// for the activity log. Calls that match no mock go out unchanged.
-// No imports and no extension APIs: this is a plain script in the page.
+// page's own world at document_start, before the page's scripts; registered only while a
+// mock rule is on (src/extension/mockRules.js). The mocks come from the extension's side
+// (mockBridge.js), which also gets a report of each one used, for the activity log.
+// Calls that match no mock go out unchanged, and a page with no mocks gets the original
+// fetch() and XMLHttpRequest back as soon as that's known.
+// No imports and no extension APIs: a plain file, copied into the build as it is.
 (function() {
     "use strict";
 
@@ -24,6 +26,17 @@
 
     var mocks = null;
     var waiters = [];
+    var originalFetch = window.fetch;
+    var proto = XMLHttpRequest.prototype;
+    var originalOpen = proto.open;
+    var originalSend = proto.send;
+
+    // Nothing to mock here: back to the page's own fetch() and XMLHttpRequest.
+    var unwrap = function() {
+        if (window.fetch === wrappedFetch) window.fetch = originalFetch;
+        if (proto.open === wrappedOpen) proto.open = originalOpen;
+        if (proto.send === wrappedSend) proto.send = originalSend;
+    };
 
     var setMocks = function(list) {
         mocks = (Array.isArray(list) ? list : []).map(function(mock) {
@@ -35,6 +48,7 @@
             }
             return Object.assign({}, mock, { re: re });
         });
+        if (mocks.length === 0) unwrap();
         waiters.splice(0).forEach(function(resolve) {
             resolve();
         });
@@ -47,10 +61,6 @@
             setMocks([]);
         }
     });
-    document.dispatchEvent(new CustomEvent(REQUEST_EVENT));
-    setTimeout(function() {
-        if (!mocks) setMocks([]);
-    }, CONFIG_TIMEOUT_MS);
 
     var whenReady = function() {
         return mocks ? Promise.resolve() : new Promise(function(resolve) {
@@ -102,52 +112,55 @@
         return NO_BODY_STATUSES.indexOf(mock.status) !== -1 ? null : mock.body;
     };
 
-    // fetch()
-    var originalFetch = window.fetch;
-    if (typeof originalFetch === "function") {
-        window.fetch = function(input, init) {
-            var self = this;
-            var args = arguments;
-            var request;
-            try {
-                request = new Request(input, init);
-            } catch (e) {
-                return originalFetch.apply(self, args);
-            }
-            var proceed = function() {
-                var mock = findMock(request.url);
-                if (!mock) return originalFetch.apply(self, args);
-                return sleep(mock.delay).then(function() {
-                    if (mock.mode === "delay") {
-                        return originalFetch.apply(self, args).then(function(response) {
-                            report(mock, request.url, request.method, response.status);
-                            return response;
-                        }, function(error) {
-                            report(mock, request.url, request.method, 0, String(error && error.message || error));
-                            throw error;
-                        });
-                    }
-                    report(mock, request.url, request.method, mock.status);
-                    var response = new Response(bodyFor(mock), {
-                        status: mock.status,
-                        statusText: STATUS_TEXT[mock.status] || "",
-                        headers: headersOf(mock)
+    // fetch(): the URL and method are read without building a Request, which would use up
+    // a request body the real call still needs.
+    var describe = function(input, init) {
+        var method = init && init.method;
+        if (typeof Request !== "undefined" && input instanceof Request) {
+            return { url: input.url, method: String(method || input.method || "GET").toUpperCase() };
+        }
+        try {
+            return { url: new URL(String(input), location.href).href, method: String(method || "GET").toUpperCase() };
+        } catch (e) {
+            return null;
+        }
+    };
+
+    var wrappedFetch = function(input, init) {
+        var self = this;
+        var args = arguments;
+        var request = describe(input, init);
+        if (!request) return originalFetch.apply(self, args);
+        var proceed = function() {
+            var mock = findMock(request.url);
+            if (!mock) return originalFetch.apply(self, args);
+            return sleep(mock.delay).then(function() {
+                if (mock.mode === "delay") {
+                    return originalFetch.apply(self, args).then(function(response) {
+                        report(mock, request.url, request.method, response.status);
+                        return response;
+                    }, function(error) {
+                        report(mock, request.url, request.method, 0, String(error && error.message || error));
+                        throw error;
                     });
-                    Object.defineProperty(response, "url", { value: request.url });
-                    return response;
+                }
+                report(mock, request.url, request.method, mock.status);
+                var response = new Response(bodyFor(mock), {
+                    status: mock.status,
+                    statusText: STATUS_TEXT[mock.status] || "",
+                    headers: headersOf(mock)
                 });
-            };
-            // Only calls made before the mocks arrive wait for them.
-            return mocks ? proceed() : whenReady().then(proceed);
+                Object.defineProperty(response, "url", { value: request.url });
+                return response;
+            });
         };
-    }
+        // Only calls made before the mocks arrive wait for them.
+        return mocks ? proceed() : whenReady().then(proceed);
+    };
+    if (typeof originalFetch === "function") window.fetch = wrappedFetch;
 
     // XMLHttpRequest
-    var proto = XMLHttpRequest.prototype;
-    var originalOpen = proto.open;
-    var originalSend = proto.send;
-
-    proto.open = function(method, url, async) {
+    var wrappedOpen = function(method, url, async) {
         var absolute;
         try {
             absolute = new URL(url, location.href).href;
@@ -157,6 +170,7 @@
         this.__resourced = { method: String(method || "GET").toUpperCase(), url: absolute, async: async !== false };
         return originalOpen.apply(this, arguments);
     };
+    proto.open = wrappedOpen;
 
     var define = function(xhr, name, value) {
         Object.defineProperty(xhr, name, { configurable: true, get: function() { return value; } });
@@ -202,7 +216,7 @@
         });
     };
 
-    proto.send = function() {
+    var wrappedSend = function() {
         var xhr = this;
         var args = arguments;
         var info = xhr.__resourced;
@@ -226,4 +240,12 @@
         if (mocks) proceed();
         else whenReady().then(proceed);
     };
+    proto.send = wrappedSend;
+
+    // Asked for last: the bridge may answer right away, and with no mocks the wrappers
+    // above are taken off again.
+    document.dispatchEvent(new CustomEvent(REQUEST_EVENT));
+    setTimeout(function() {
+        if (!mocks) setMocks([]);
+    }, CONFIG_TIMEOUT_MS);
 })();

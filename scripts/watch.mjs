@@ -21,10 +21,10 @@ const RELOAD_PORT = 5174;
 const KEEPALIVE_MS = 20000;
 const DEBOUNCE_MS = 150;
 
-const WATCHED = ['src', 'manifest.json', 'index.html', 'popup.html', 'sidepanel.html', 'devtools.html', 'icons', 'vite.config.js'];
+const WATCHED = ['src', 'public', 'manifest.json', 'index.html', 'popup.html', 'sidepanel.html', 'devtools.html', 'icons', 'vite.config.js'];
 // Changes here need the extension itself reloaded; anything else is UI-only.
-const EXTENSION_PATHS = ['manifest.json', 'vite.config.js', 'src/extension/', 'src/inject/'];
-const CONTENT_SCRIPT_PATH = 'src/inject/';
+const EXTENSION_PATHS = ['manifest.json', 'vite.config.js', 'src/extension/', 'src/inject/', 'public/inject/'];
+const CONTENT_SCRIPT_PATHS = ['src/inject/', 'public/inject/'];
 
 // Read by vite.config.js; an extension built in an earlier session reloads on connect.
 const sessionId = String(Date.now());
@@ -55,7 +55,7 @@ const runBuild = async (changedFiles) => {
   try {
     await build({ root, mode: 'watch', logLevel: 'warn' });
     const reloadsExtension = changedFiles.some((file) => EXTENSION_PATHS.some((p) => file === p || file.startsWith(p)));
-    const reloadTabs = changedFiles.some((file) => file.startsWith(CONTENT_SCRIPT_PATH));
+    const reloadTabs = changedFiles.some((file) => CONTENT_SCRIPT_PATHS.some((p) => file.startsWith(p)));
     if (changedFiles.length > 0) {
       broadcast({ type: 'reload', scope: reloadsExtension ? 'extension' : 'pages', reloadTabs });
     }

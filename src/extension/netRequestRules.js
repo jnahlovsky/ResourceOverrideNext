@@ -2,6 +2,7 @@
 import { buildUrlMatch, applyDomainFilters, getTargetPort, getTargetHost, getSiteLists, buildSiteBlockConditions, buildSiteVariants } from './urlPattern.js';
 import { canEditRulePort } from '../lib/ruleLabels.js';
 import { setActivityRules } from './activityLog.js';
+import { syncMockScripts } from './mockRules.js';
 
 const RESOURCE_TYPES = [
     "main_frame", "sub_frame", "stylesheet", "script", "image",
@@ -211,6 +212,7 @@ export async function updateDNRRules() {
             .flatMap(domainObj => domainObj.rules || [])
             .filter(rule => rule.on && !ruleErrors[rule.id]), sites);
         await publishHudRedirects(domains, isExtensionOn, ruleErrors);
+        await syncMockScripts(domains, isExtensionOn);
 
         console.log(`DNR rules updated. Added ${registered.length} of ${entries.length} rules and site filters.`);
     } catch (e) {
