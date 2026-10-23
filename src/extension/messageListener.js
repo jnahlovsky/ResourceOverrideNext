@@ -6,14 +6,16 @@ import { parsePortInput, setTargetPort } from './urlPattern.js';
 
     const simpleError = bgapp.util.simpleError;
 
-    const syncAllInstances = function() {
+    // After any change to the rules: Chrome's rules, the open extension pages, and sync to
+    // other computers (sync.js) follow. Presets and backup restores call it too.
+    bgapp.notifyRulesChanged = function() {
         if (bgapp.updateDNRRules) {
             bgapp.updateDNRRules();
         }
-        
-        // Broadcast to all extension UI pages that data has updated
         chrome.runtime.sendMessage({ action: "dataUpdated" }).catch(() => {});
+        if (bgapp.sync) bgapp.sync.schedulePush();
     };
+    const syncAllInstances = () => bgapp.notifyRulesChanged();
 
     // The page HUD can switch a redirect on or off and change its port; nothing else.
     const updateRuleFromHud = async function({ ruleId, on, port }) {

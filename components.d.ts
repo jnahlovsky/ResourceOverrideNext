@@ -26,6 +26,7 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     RuleCard: typeof import('./src/components/RuleCard.vue')['default']
     RuleControls: typeof import('./src/components/RuleControls.vue')['default']
+    RulesDataSettings: typeof import('./src/components/RulesDataSettings.vue')['default']
     SaveStatus: typeof import('./src/components/SaveStatus.vue')['default']
     SettingsModal: typeof import('./src/components/SettingsModal.vue')['default']
     TemplatePicker: typeof import('./src/components/TemplatePicker.vue')['default']

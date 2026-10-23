@@ -11,6 +11,8 @@ import './activityLog.js';
 import './fileInjection.js';
 import './mockRules.js';
 import './backups.js';
+import './presets.js';
+import './sync.js';
 import { connectDevReload } from './devReload.js';
 
 globalThis.bgapp.updateDNRRules = updateDNRRules;

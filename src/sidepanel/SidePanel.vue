@@ -204,6 +204,12 @@
                           >{{ getRuleDisplayName(rule) }}</button>
 
                           <UIcon
+                            v-if="rule.presetUrl"
+                            name="i-lucide-link"
+                            class="shrink-0 w-3 h-3 text-slate-500"
+                            :title="`From the team preset ${rule.presetUrl}`"
+                          />
+                          <UIcon
                             v-if="!isExpanded(rule) && hasActiveDomainFilters(rule)"
                             name="i-lucide-funnel"
                             class="shrink-0 w-3 h-3 text-slate-500"

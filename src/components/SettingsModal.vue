@@ -256,6 +256,9 @@
             </label>
           </div>
         </section>
+
+        <!-- Sync, team presets and backups -->
+        <RulesDataSettings />
       </div>
     </div>
   </div>
@@ -263,6 +266,7 @@
 
 <script setup>
 import { useModal } from '../composables/useModal.js';
+import RulesDataSettings from './RulesDataSettings.vue';
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { buildUrlMatch, getTargetPort, parseSiteList, isAllowlistSupported } from '../extension/urlPattern.js';
 import { getRuleDisplayName, canEditRulePort } from '../lib/ruleLabels.js';

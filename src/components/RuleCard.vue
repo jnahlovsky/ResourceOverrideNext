@@ -67,6 +67,12 @@
             >+port</button>
           </template>
           <UIcon
+            v-if="rule.presetUrl"
+            name="i-lucide-link"
+            class="shrink-0 w-3.5 h-3.5 text-slate-500"
+            :title="`From the team preset ${rule.presetUrl}. It's refreshed every hour; changes made here are replaced then (switching it on or off is kept).`"
+          />
+          <UIcon
             v-if="ruleError"
             name="i-lucide-triangle-alert"
             class="shrink-0 w-3.5 h-3.5 text-red-500"
