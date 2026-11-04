@@ -1,6 +1,6 @@
 /* global chrome */
 // Small overlay listing the URL redirects, each with an on/off switch and its port, which
-// can be changed in place. Its handle drags it out of the way.
+// can be changed in place, or "No overrides" while none is on. Its handle drags it out of the way.
 // The list is published to storage by updateDNRRules (src/extension/netRequestRules.js) and
 // changes go back through the background ("hudUpdateRule" in messageListener.js); the
 // settings are written by the Settings screen (src/components/SettingsModal.vue).
@@ -26,6 +26,8 @@
         hudShowCounts: true,
         hudShowSwitches: true,
         hudPortMode: "edit", // "edit" | "show" | "hide"
+        // A green light animated around the pill while redirects are on, or "off".
+        hudGlow: "snake", // "off" | "snake" | "glow" | "pulse" | "scanner"
         // Comma-separated domains the HUD is limited to; empty = every site.
         hudSites: "",
         // Settings → Sites: where the extension works at all.
@@ -40,6 +42,8 @@
     var SNAP_DISTANCE = 24;
     // Pointer travel below this is a click on the handle, not a drag.
     var DRAG_THRESHOLD = 3;
+    // The running light's animations (.glow-* below). Keep in sync with SettingsModal.vue.
+    var GLOW_STYLES = ["snake", "glow", "pulse", "scanner"];
 
     var state = Object.assign({}, DEFAULTS, { hudRedirects: [] });
     var host = null;
@@ -75,6 +79,28 @@
         "  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.08);",
         "  font: 500 12px/18px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;",
         "  user-select: none; -webkit-user-select: none; cursor: default; transition: opacity 0.15s ease; }",
+        // The running light: a line just outside the pill's edge, glowing onto the page. Behind
+        // the content (z-index -1 stays inside the pill's stacking context), and only drawn
+        // with .has-glow. The SVG reaches 20px past the pill so the scanner's mask covers the
+        // glow too. pathLength 100 makes dashes a share of the outline, whatever its size.
+        // Keep in sync with .hud-glow in SettingsModal.vue.
+        ".glow { position: absolute; top: -20px; left: -20px; width: calc(100% + 40px); height: calc(100% + 40px);",
+        "  overflow: visible; pointer-events: none;",
+        "  z-index: -1; display: none; filter: drop-shadow(0 0 2px #00dc82) drop-shadow(0 0 6px rgba(0, 220, 130, 0.9))",
+        "  drop-shadow(0 0 14px rgba(0, 220, 130, 0.55)); }",
+        ".has-glow .glow { display: block; }",
+        ".glow rect { x: 19px; y: 19px; width: calc(100% - 38px); height: calc(100% - 38px); rx: 16px; ry: 16px;",
+        "  fill: none; stroke: #00dc82; stroke-width: 2px; stroke-linecap: round; }",
+        // Snake: one line chasing round. Glow: the whole outline, steady. Pulse: the outline
+        // breathing. Scanner: a light sweeping left to right and back.
+        ".glow-snake .glow rect { stroke-dasharray: 22 78; animation: hud-glow-run 2s linear infinite; }",
+        ".glow-pulse .glow rect { animation: hud-glow-pulse 2.4s ease-in-out infinite; }",
+        ".glow-scanner .glow { -webkit-mask: linear-gradient(90deg, transparent, #000 50%, transparent) 0 0 / 35% 100% no-repeat;",
+        "  mask: linear-gradient(90deg, transparent, #000 50%, transparent) 0 0 / 35% 100% no-repeat;",
+        "  animation: hud-glow-scan 2.4s ease-in-out infinite alternate; }",
+        "@keyframes hud-glow-run { to { stroke-dashoffset: -100; } }",
+        "@keyframes hud-glow-pulse { 0%, 100% { opacity: 0.1; } 50% { opacity: 1; } }",
+        "@keyframes hud-glow-scan { to { -webkit-mask-position: 100% 0; mask-position: 100% 0; } }",
         ".hud.is-dragging { transition: none; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.14); }",
         // The handle is the whole left end of the pill, tinted so it reads as its own part, and
         // there is no gap to cross before reaching it.
@@ -89,6 +115,8 @@
         ".list { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 0; min-width: 0; }",
         ".item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; min-width: 0; max-width: 100%; }",
         ".sep { flex: none; width: 1px; height: 14px; margin: 0 10px; background: rgba(255, 255, 255, 0.18); }",
+        ".empty { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;",
+        "  color: rgba(248, 250, 252, 0.6); white-space: nowrap; }",
         ".name { min-width: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; transition: opacity 0.15s ease; }",
         ".is-off .name, .is-off .port { opacity: 0.5; }",
         ".count { flex: none; font: 600 10.5px/16px ui-monospace, SFMono-Regular, Menlo, monospace; color: rgba(248, 250, 252, 0.55); }",
@@ -152,11 +180,11 @@
         ".tip.is-visible { opacity: 1; }"
     ].join("\n");
 
-    // Lucide "move" icon (ISC licence).
-    var moveIconSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" ' +
+    // Lucide "grip-vertical" icon (ISC licence), the same grip as the rule cards'.
+    var gripIconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" ' +
         'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-        '<path d="M12 2v20"/><path d="m15 19-3 3-3-3"/><path d="m19 9 3 3-3 3"/>' +
-        '<path d="M2 12h20"/><path d="m5 9-3 3 3 3"/><path d="m9 5 3-3 3 3"/></svg>';
+        '<circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/>' +
+        '<circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>';
 
     var clamp = function(value, min, max) {
         return Math.min(Math.max(value, min), Math.max(min, max));
@@ -575,7 +603,7 @@
         handle.className = "handle";
         handle.setAttribute("data-tip", "Drag to move the HUD · double-click to reset");
         handle.setAttribute("aria-label", "Move the HUD");
-        handle.innerHTML = moveIconSvg;
+        handle.innerHTML = gripIconSvg;
         handle.addEventListener("pointerdown", onDragStart);
         handle.addEventListener("pointermove", onDragMove);
         handle.addEventListener("pointerup", onDragEnd);
@@ -608,6 +636,15 @@
             });
         });
 
+        var svgNs = "http://www.w3.org/2000/svg";
+        var glow = document.createElementNS(svgNs, "svg");
+        glow.setAttribute("class", "glow");
+        glow.setAttribute("aria-hidden", "true");
+        var glowPath = document.createElementNS(svgNs, "rect");
+        glowPath.setAttribute("pathLength", "100");
+        glow.appendChild(glowPath);
+
+        hud.appendChild(glow);
         hud.appendChild(handle);
         hud.appendChild(content);
 
@@ -843,11 +880,30 @@
         });
     };
 
+    // On every page where it's enabled, while the extension is on; the list itself may be
+    // empty (see hasOverrides).
     var shouldShow = function() {
+        return state.hudEnabled && state.isExtensionOn !== "false" && siteAllowed() &&
+            siteIsEnabled(state.siteAllowlist, state.siteBlocklist, location.hostname);
+    };
+
+    // Whether to list redirects at all, or just say "No overrides": at least one has to be on.
+    // One switched off from the HUD stays listed, so it can be switched back.
+    var hasOverrides = function() {
         var redirects = Array.isArray(state.hudRedirects) ? state.hudRedirects : [];
-        return state.hudEnabled && siteAllowed() && siteIsEnabled(state.siteAllowlist, state.siteBlocklist, location.hostname) &&
-            visibleRedirects().length > 0 &&
+        return visibleRedirects().length > 0 &&
             (keepVisible || redirects.some(function(redirect) { return redirect.on; }));
+    };
+
+    var renderEmpty = function() {
+        var empty = document.createElement("span");
+        empty.className = "empty";
+        empty.textContent = "No overrides";
+        var redirects = Array.isArray(state.hudRedirects) ? state.hudRedirects : [];
+        empty.setAttribute("data-tip", redirects.some(function(redirect) { return redirect.on; })
+            ? "None of your redirects is shown with the HUD settings"
+            : "No redirect is switched on");
+        return empty;
     };
 
     // Applied here right away; the background saves it and publishes the list again.
@@ -1000,15 +1056,28 @@
         hideTip();
         list.textContent = "";
         hud.style.opacity = String(state.hudOpacity);
-
-        visibleRedirects().forEach(function(redirect, index) {
-            if (index > 0) {
-                var sep = document.createElement("span");
-                sep.className = "sep";
-                list.appendChild(sep);
-            }
-            list.appendChild(renderItem(redirect));
+        // Runs only while something is overridden, so it also tells "on" from "No overrides".
+        // Values no longer offered (speeds, removed animations) count as the snake.
+        var glowStyle = state.hudGlow === "off" ? null : GLOW_STYLES.indexOf(state.hudGlow) !== -1 ? state.hudGlow : "snake";
+        var overriding = hasOverrides();
+        hud.classList.toggle("has-glow", !!glowStyle && overriding);
+        GLOW_STYLES.forEach(function(style) {
+            hud.classList.toggle("glow-" + style, style === glowStyle);
         });
+
+        if (overriding) {
+            visibleRedirects().forEach(function(redirect, index) {
+                if (index > 0) {
+                    var sep = document.createElement("span");
+                    sep.className = "sep";
+                    list.appendChild(sep);
+                }
+                list.appendChild(renderItem(redirect));
+            });
+        } else {
+            if (logRuleId !== null) closeLog();
+            list.appendChild(renderEmpty());
+        }
 
         attach();
         // Measured after the content changed, so a wider pill still fits on screen.
@@ -1043,7 +1112,8 @@
     // Registered after the dispatch above, so this copy only hears the next one.
     document.addEventListener(REPLACE_EVENT, destroy);
 
-    var keys = Object.keys(DEFAULTS).concat("hudRedirects");
+    // The HUD is hidden while the whole extension is switched off.
+    var keys = Object.keys(DEFAULTS).concat("hudRedirects", "isExtensionOn");
 
     // Many requests can arrive at once; one render per frame is enough.
     var scheduleRender = function() {

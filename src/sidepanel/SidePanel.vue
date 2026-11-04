@@ -2,18 +2,23 @@
   <UApp>
     <!-- Sized as a container so the layout follows the panel's own width. Waits for the
          header's on/off states, so its controls don't animate from guessed values.
-         The popup grows with its rules up to Chrome's 600px popup limit, then the list scrolls. -->
-    <div v-if="isExtensionOn !== null" class="@container flex flex-col bg-slate-50 overflow-hidden" :class="isSidePanel ? 'h-full' : 'max-h-[600px]'">
+         The popup grows with its rules up to Chrome's 600px popup limit, then the list scrolls.
+         Settings cover the whole popup, so it takes its full height while they're open. -->
+    <div
+      v-if="isExtensionOn !== null"
+      class="@container flex flex-col bg-slate-50 overflow-hidden"
+      :class="isSidePanel ? 'h-full' : ['max-h-[600px]', isSettingsOpen && 'h-[600px]']"
+    >
       <!-- Header -->
       <header
-        class="shrink-0 bg-linear-to-b to-white px-3 @max-2xs:px-2 py-2.5 flex items-center gap-2 border-b border-slate-200 transition-colors"
-        :class="isExtensionOn ? 'from-primary-100' : 'from-slate-200'"
+        class="shrink-0 bg-linear-to-b to-white px-3 @max-2xs:px-2 py-2.5 flex items-center gap-2 border-b transition-colors"
+        :class="isExtensionOn ? 'from-primary-100 border-slate-200' : 'from-red-200 border-red-200'"
       >
         <img src="/icons/icon-48x48.png" alt="" class="w-5 h-5 shrink-0 transition-all" :class="!isExtensionOn && 'grayscale opacity-60'" />
         <span class="min-w-0 truncate text-[15px] font-extrabold tracking-tight @max-2xs:hidden" :class="isExtensionOn ? 'text-slate-900' : 'text-slate-400'">Resourced</span>
         <div class="flex-1"></div>
         <SaveStatus compact class="shrink-0" />
-        <div class="flex items-center gap-0.5 shrink-0">
+        <div class="flex items-center gap-0.5 shrink-0 transition-[filter]" :class="!isExtensionOn && 'grayscale'">
           <UButton
             v-if="view === 'rules'"
             variant="ghost"
@@ -75,7 +80,7 @@
           color="success"
           size="sm"
           class="shrink-0"
-          :ui="{ base: 'data-[state=unchecked]:bg-slate-400' }"
+          :ui="{ base: 'data-[state=unchecked]:bg-red-500' }"
           :aria-label="isExtensionOn ? 'Pause all rules' : 'Resume all rules'"
         />
       </header>
@@ -84,7 +89,13 @@
 
       <template v-else>
         <!-- Icon Tabs -->
-        <nav role="tablist" aria-label="Rule types" class="shrink-0 flex bg-white border-b border-slate-200">
+        <!-- Tabs and rules are greyed out while everything is switched off. -->
+        <nav
+          role="tablist"
+          aria-label="Rule types"
+          class="shrink-0 flex bg-white border-b border-slate-200 transition-[filter,opacity] duration-200"
+          :class="!isExtensionOn && 'grayscale opacity-60'"
+        >
           <button
             v-for="group in RULE_GROUPS"
             :key="group.value"
@@ -120,8 +131,8 @@
           >
             <div v-if="!isExtensionOn" class="grid">
               <div class="min-h-0 overflow-hidden">
-                <div class="mb-2 flex items-center gap-2 rounded-md bg-slate-200/70 px-3 py-2 text-[12px] text-slate-600">
-                  <UIcon name="i-lucide-pause" class="w-3.5 h-3.5 shrink-0" />
+                <div class="mb-2 flex items-center gap-2 rounded-md bg-red-100 px-3 py-2 text-[12px] font-medium text-red-700">
+                  <UIcon name="i-lucide-power-off" class="w-3.5 h-3.5 shrink-0" />
                   <span class="truncate">All rules are paused.</span>
                 </div>
               </div>
@@ -130,7 +141,7 @@
 
           <!-- Every tab's list sits in the same grid cell and only the active one is visible,
                so the area is as tall as the longest list and switching tabs doesn't resize it. -->
-          <div class="grid">
+          <div class="grid transition-[filter] duration-200" :class="!isExtensionOn && 'grayscale'">
             <section
               v-for="group in RULE_GROUPS"
               :key="group.value"
@@ -266,6 +277,38 @@
                         :rule="rule"
                         @update-options="(patch) => updateRuleOptions(rule, patch)"
                       />
+                      <!-- Only on the open row, like its other controls. Deleting asks in place: the
+                           popup can be too short for a dialog. -->
+                      <template v-if="isExpanded(rule) && confirmingDeleteId === rule.id">
+                        <UButton
+                          color="error"
+                          size="xs"
+                          class="shrink-0 h-6 px-2 text-[11px]"
+                          :aria-label="`Delete ${getRuleDisplayName(rule)}`"
+                          data-confirm-delete
+                          @click.stop="deleteRule(rule)"
+                          @keydown.esc.stop.prevent="confirmingDeleteId = null"
+                        >Delete</UButton>
+                        <button
+                          type="button"
+                          class="shrink-0 flex items-center justify-center w-6 h-6 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-300 transition-colors"
+                          title="Keep the rule"
+                          aria-label="Keep the rule"
+                          @click.stop="confirmingDeleteId = null"
+                        >
+                          <UIcon name="i-lucide-x" class="w-3.5 h-3.5" />
+                        </button>
+                      </template>
+                      <button
+                        v-else-if="isExpanded(rule)"
+                        type="button"
+                        class="shrink-0 flex items-center justify-center w-6 h-6 rounded-md text-slate-500 hover:text-red-500 hover:bg-slate-300 transition-colors"
+                        title="Delete rule"
+                        :aria-label="`Delete ${getRuleDisplayName(rule)}`"
+                        @click.stop="requestDelete(rule)"
+                      >
+                        <UIcon name="i-lucide-trash-2" class="w-3.5 h-3.5" />
+                      </button>
                       <USwitch
                         :model-value="rule.on"
                         @update:model-value="(on) => toggleRule(rule, on)"
@@ -323,6 +366,9 @@
         </footer>
       </template>
     </div>
+
+    <!-- The editor's Settings, filling the popup / panel. -->
+    <SettingsModal v-model="isSettingsOpen" :rules="rules" compact />
   </UApp>
 </template>
 
@@ -336,10 +382,12 @@ import { useRuleErrors } from '../composables/useRuleErrors.js';
 import ActivityLog from './ActivityLog.vue';
 import RuleControls from '../components/RuleControls.vue';
 import SaveStatus from '../components/SaveStatus.vue';
+import SettingsModal from '../components/SettingsModal.vue';
 import TemplatePicker from '../components/TemplatePicker.vue';
 import { ruleFromTemplate } from '../lib/templates.js';
+import { openEditor as openEditorTab } from '../lib/editorTab.js';
 import { validateRule } from '../lib/ruleValidation.js';
-import { RULE_GROUPS, getRuleDisplayName, getRuleSummary, getRulePort, canEditRulePort } from '../lib/ruleLabels.js';
+import { RULE_GROUPS, getRuleDisplayName, getRuleSummary, getRulePort, canEditRulePort, isRuleEmpty } from '../lib/ruleLabels.js';
 import { setTargetPort, parsePortInput, getDomainFilters } from '../extension/urlPattern.js';
 
 // Also the toolbar popup (popup.html): both are for quick on/off, the editor is for edits.
@@ -416,6 +464,7 @@ const isExpanded = (rule) => isExpandAll.value || expandedId.value === rule.id;
 const toggleExpanded = (rule) => {
   if (isExpandAll.value) return;
   expandedId.value = expandedId.value === rule.id ? null : rule.id;
+  confirmingDeleteId.value = null;
 };
 watch(activeGroup, () => {
   expandedId.value = null;
@@ -456,6 +505,27 @@ const toggleRule = async (rule, on) => {
   rule.on = on;
   await saveDomain(globalDomain.value);
 };
+
+// Like the editor: an empty rule goes right away, any other asks first (in its row).
+const confirmingDeleteId = ref(null);
+const requestDelete = (rule) => {
+  if (isRuleEmpty(rule)) {
+    deleteRule(rule);
+    return;
+  }
+  confirmingDeleteId.value = rule.id;
+  nextTick(() => document.querySelector('[data-confirm-delete]')?.focus());
+};
+const deleteRule = async (rule) => {
+  confirmingDeleteId.value = null;
+  if (!globalDomain.value) return;
+  globalDomain.value.rules = globalDomain.value.rules.filter(r => r.id !== rule.id);
+  if (expandedId.value === rule.id) expandedId.value = null;
+  await saveDomain(globalDomain.value);
+};
+watch(activeGroup, () => {
+  confirmingDeleteId.value = null;
+});
 
 // Quick edits of a rule's name or destination port; everything else is in the editor.
 const editing = ref(null); // { id, field: 'name' | 'port' }
@@ -542,13 +612,16 @@ const toggleSidePanel = () => {
   }
 };
 
-const openEditor = () => {
-  if (hasChrome) chrome.tabs.create({ url: chrome.runtime.getURL('index.html?tab=true') });
+// Brings the editor forward if it's open already. The popup makes way for it.
+const openEditor = async () => {
+  if (!hasChrome) return;
+  await openEditorTab().catch((err) => console.error('Could not open the editor:', err));
+  if (!isSidePanel) window.close();
 };
 
-// Settings live in the editor; ?open=settings shows them when it loads (App.vue).
+const isSettingsOpen = ref(false);
 const openSettings = () => {
-  if (hasChrome) chrome.tabs.create({ url: chrome.runtime.getURL('index.html?tab=true&open=settings') });
+  isSettingsOpen.value = true;
 };
 
 // Lets the Settings screen show whether the panel is open in its window.

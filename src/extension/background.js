@@ -7,6 +7,7 @@ import './extractMime.js';
 import './messageListener.js';
 import './action.js';
 import { updateDNRRules } from './netRequestRules.js';
+import { openEditor } from '../lib/editorTab.js';
 import './activityLog.js';
 import './fileInjection.js';
 import './mockRules.js';
@@ -53,6 +54,6 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId === "open_in_tab") {
-        chrome.tabs.create({ url: chrome.runtime.getURL("index.html?tab=true") });
+        openEditor().catch((err) => console.error("Could not open the editor:", err));
     }
 });

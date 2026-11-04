@@ -1,7 +1,7 @@
 <template>
   <!-- Settings for the rules as a whole: sync across computers, team presets and backups.
        The work happens in the background (src/extension/sync.js, presets.js, backups.js). -->
-  <div class="space-y-8">
+  <div class="space-y-8 @max-xl:space-y-6">
     <section>
       <h4 class="text-lg font-bold text-slate-900 mb-1">Sync</h4>
       <p class="text-slate-500 mb-4">
@@ -76,7 +76,7 @@
       </p>
       <p v-if="backups.length === 0" class="text-[12px] text-slate-400">No backups yet. One is made before your next change.</p>
       <ul v-else class="bg-white rounded-md border border-slate-200 divide-y divide-slate-200">
-        <li v-for="backup in backups" :key="backup.id" class="flex items-center gap-3 px-4 py-2">
+        <li v-for="backup in backups" :key="backup.id" class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2">
           <UIcon name="i-lucide-history" class="w-4 h-4 shrink-0 text-slate-400" />
           <span class="min-w-0 flex-1">
             <span class="block font-semibold text-slate-800">{{ new Date(backup.time).toLocaleString() }}</span>

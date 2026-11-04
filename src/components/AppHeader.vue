@@ -1,26 +1,31 @@
 <template>
-  <div class="bg-linear-to-b to-white px-6 py-4 flex justify-between items-center relative z-10 border-b border-slate-100 transition-colors" :class="isExtensionOn === false ? 'from-slate-200' : 'from-primary-100'">
+  <!-- Switched off, the header turns red, so it's clear at a glance. -->
+  <div class="bg-linear-to-b to-white px-6 py-4 flex justify-between items-center relative z-10 border-b transition-colors" :class="isExtensionOn === false ? 'from-red-200 border-red-200' : 'from-primary-100 border-slate-100'">
       <div class="flex flex-1 items-center gap-2.5">
           <img src="/icons/icon-48x48.png" alt="Resourced Logo" class="w-7 h-7 drop-shadow-sm" :class="[isExtensionOn === false && 'grayscale opacity-60', canAnimate && 'transition-all']" />
           <h1 class="m-0 text-[24px] font-extrabold tracking-tight" :class="isExtensionOn === false ? 'text-slate-400' : 'text-slate-900'">
-            Resourced <span class="text-primary-500">v1</span>
+            Resourced <span :class="isExtensionOn === false ? 'text-slate-400' : 'text-primary-500'">v1</span>
           </h1>
       </div>
       <div class="flex flex-1 justify-end items-center gap-3" v-if="isExtensionOn !== null">
           <SaveStatus />
-          <span class="text-xs font-bold uppercase tracking-wider" :class="isExtensionOn ? 'text-primary-600' : 'text-slate-400'">
+          <span class="text-xs font-bold uppercase tracking-wider" :class="isExtensionOn ? 'text-primary-600' : 'text-red-600'">
             {{ isExtensionOn ? 'Active' : 'Disabled' }}
           </span>
-          <USwitch :model-value="isExtensionOn" @update:model-value="toggleExtension" color="success" size="lg" :ui="{ base: 'data-[state=unchecked]:bg-slate-400' }" />
+          <USwitch :model-value="isExtensionOn" @update:model-value="toggleExtension" color="success" size="lg" :ui="{ base: 'data-[state=unchecked]:bg-red-500' }" />
       </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import SaveStatus from './SaveStatus.vue';
 
+// The editor greys out its rules while everything is switched off (App.vue).
+const emit = defineEmits(['change']);
+
 const isExtensionOn = ref(null);
+watch(isExtensionOn, (on) => emit('change', on));
 // Transitions start after the first state is painted, so loading as "off" doesn't animate.
 const canAnimate = ref(false);
 const setInitialState = (on) => {

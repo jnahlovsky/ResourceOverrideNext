@@ -2,10 +2,10 @@
   <UApp>
     <!-- Opened as a tab, the options page or the DevTools panel; the popup is popup.html. -->
     <div id="vue-root" class="flex flex-col bg-white w-full max-w-[1200px] h-[calc(100vh-40px)] my-5 mx-auto rounded-xl shadow-xl overflow-hidden">
-      <AppHeader />
+      <AppHeader @change="(on) => isExtensionOn = on" />
 
-      <!-- Main View -->
-      <div class="flex-1 flex flex-col overflow-hidden min-h-0">
+      <!-- Main View; greyed out while the extension is switched off. -->
+      <div class="flex-1 flex flex-col overflow-hidden min-h-0 transition-[filter,opacity] duration-200" :class="isExtensionOn === false && 'grayscale opacity-70'">
         <UTabs v-model="activeTab" :items="tabItems" class="flex-1 flex flex-col pt-0 px-0 w-full min-h-0" :ui="{
             root: 'flex-1 flex flex-col min-h-0',
             list: 'flex w-full bg-white border-b border-slate-200 p-0 rounded-none shrink-0',
@@ -56,7 +56,7 @@
       </div>
 
       <!-- Fixed Footer -->
-      <div class="shrink-0 bg-white flex justify-between items-center p-3 px-6 z-50 border-t border-slate-100">
+      <div class="shrink-0 bg-white flex justify-between items-center p-3 px-6 z-50 border-t border-slate-100 transition-[filter] duration-200" :class="isExtensionOn === false && 'grayscale'">
         <div class="flex gap-2 items-center">
           <UButton variant="ghost" color="neutral" size="sm" class="font-medium text-slate-600" icon="i-lucide-help-circle" @click="handleHelp">
             Help
@@ -136,6 +136,7 @@ import HelpModal from './components/HelpModal.vue';
 import SettingsModal from './components/SettingsModal.vue';
 import ConfirmModal from './components/ConfirmModal.vue';
 import TestRulesModal from './components/TestRulesModal.vue';
+import { yieldToOlderEditor } from './lib/editorTab.js';
 
 const activeTab = ref('redirects');
 
@@ -154,6 +155,9 @@ const isHelpOpen = ref(false);
 
 // Settings Modal state
 const isSettingsOpen = ref(false);
+
+// From the header's master switch; null until it's known.
+const isExtensionOn = ref(null);
 
 // Test Rules state
 const isTestOpen = ref(false);
@@ -207,8 +211,8 @@ const handleConfirmCancel = () => {
 };
 
 onMounted(async () => {
-  // Opened from the popup / side panel's settings button.
-  if (new URLSearchParams(window.location.search).get('open') === 'settings') isSettingsOpen.value = true;
+  // Only one editor tab: a second copy shows the first one instead and closes.
+  if (typeof chrome !== 'undefined' && chrome.tabs && await yieldToOlderEditor().catch(() => false)) return;
 
   await fetchDomains();
 

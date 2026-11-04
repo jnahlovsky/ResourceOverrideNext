@@ -9,10 +9,11 @@
       role="dialog"
       aria-modal="true"
       aria-label="Settings"
-      class="bg-white flex flex-col w-[960px] 2xl:w-[1120px] max-w-[92vw] h-[720px] 2xl:h-[840px] max-h-[90vh] shadow-2xl rounded-xl overflow-hidden"
+      class="@container bg-white flex flex-col overflow-hidden"
+      :class="compact ? 'w-full h-full' : 'w-[960px] 2xl:w-[1120px] max-w-[92vw] h-[720px] 2xl:h-[840px] max-h-[90vh] shadow-2xl rounded-xl'"
     >
       <!-- Header -->
-      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0 bg-white">
+      <div class="flex items-center justify-between px-6 py-4 @max-xl:px-4 @max-xl:py-3 border-b border-slate-200 shrink-0 bg-white">
         <h3 class="text-base font-semibold leading-6 text-slate-900 flex items-center gap-2">
           <UIcon name="i-lucide-settings" class="w-5 h-5 text-primary-500" />
           Settings
@@ -21,9 +22,9 @@
       </div>
 
       <!-- Content Area -->
-      <div class="flex-1 overflow-y-auto p-8 bg-slate-50 text-[13px] text-slate-700 space-y-8">
+      <div class="flex-1 overflow-y-auto p-8 @max-xl:p-4 bg-slate-50 text-[13px] text-slate-700 space-y-8 @max-xl:space-y-6">
         <section>
-          <div class="flex items-center justify-between gap-6">
+          <div class="flex items-center justify-between gap-6" :class="STACKED">
             <span>
               <h4 class="text-lg font-bold text-slate-900 mb-1">Appearance</h4>
               <p class="text-slate-500">The editor, popup and side panel. System follows your computer's setting.</p>
@@ -52,8 +53,8 @@
 
           <div class="bg-white rounded-md border border-slate-200 divide-y divide-slate-200">
             <div v-for="list in SITE_LISTS" :key="list.key" class="px-4 py-3">
-              <div class="flex items-start justify-between gap-6">
-                <span class="shrink-0 w-56">
+              <div class="flex items-start justify-between gap-6" :class="STACKED">
+                <span class="shrink-0 w-56 @max-xl:w-auto">
                   <span class="block font-semibold text-slate-800">{{ list.label }}</span>
                   <span class="block text-slate-500 text-[12px]">{{ list.description }}</span>
                 </span>
@@ -64,12 +65,12 @@
                   :rows="1"
                   :maxrows="4"
                   size="sm"
-                  class="font-mono flex-1"
+                  class="font-mono flex-1 @max-xl:flex-none @max-xl:self-stretch"
                   :ui="{ base: 'bg-white border-slate-300 rounded-sm shadow-none py-1.5' }"
                   @change="saveSites(list.key)"
                 />
               </div>
-              <ul v-if="siteWarnings[list.key].length > 0" class="mt-2 ml-62 space-y-0.5 text-[12px]">
+              <ul v-if="siteWarnings[list.key].length > 0" class="mt-2 ml-62 @max-xl:ml-0 space-y-0.5 text-[12px]">
                 <li v-for="warning in siteWarnings[list.key]" :key="warning.pattern" class="flex items-start gap-1.5 text-amber-700">
                   <UIcon name="i-lucide-triangle-alert" class="w-3.5 h-3.5 shrink-0 mt-px" />
                   <span><code class="font-mono font-semibold">{{ warning.pattern }}</code>: {{ warning.message }}</span>
@@ -117,14 +118,23 @@
               Preview{{ previewRedirects.isExample ? ' · example redirects' : '' }}{{ settings.hudShowCounts || settings.hudOnlyUsed ? ' · example counts' : '' }}
             </span>
             <div
-              v-if="settings.hudEnabled && previewRedirects.items.length > 0"
-              class="mx-auto w-fit max-w-full flex items-stretch rounded-[15px] bg-slate-900/80 text-slate-50 text-[12px] leading-[18px] font-medium shadow-lg backdrop-blur-sm ring-1 ring-white/10 transition-opacity"
+              v-if="settings.hudEnabled"
+              class="relative isolate mx-auto w-fit max-w-full flex items-stretch rounded-[15px] bg-slate-900/80 text-slate-50 text-[12px] leading-[18px] font-medium shadow-lg backdrop-blur-sm ring-1 ring-white/10 transition-opacity"
               :style="{ opacity: settings.hudOpacity }"
             >
+              <svg
+                v-if="settings.hudGlow !== 'off' && previewRedirects.items.some(item => item.on)"
+                class="hud-glow"
+                :class="`hud-glow-${settings.hudGlow}`"
+                aria-hidden="true"
+              ><rect pathLength="100" /></svg>
               <span class="flex items-center justify-center w-[26px] shrink-0 rounded-l-[15px] bg-white/[0.07] border-r border-white/[0.12] text-slate-50/60">
-                <UIcon name="i-lucide-move" class="w-3 h-3" />
+                <UIcon name="i-lucide-grip-vertical" class="w-3.5 h-3.5" />
               </span>
-              <span class="flex flex-wrap items-center gap-y-0.5 py-[5px] pl-2.5 pr-3 min-w-0">
+              <span v-if="previewRedirects.items.length === 0" class="flex items-center py-[5px] pl-2.5 pr-3 text-[10.5px] font-bold uppercase tracking-[0.06em] text-slate-50/60 whitespace-nowrap">
+                No overrides
+              </span>
+              <span v-else class="flex flex-wrap items-center gap-y-0.5 py-[5px] pl-2.5 pr-3 min-w-0">
                 <template v-for="(item, index) in previewRedirects.items" :key="item.id">
                   <span v-if="index > 0" class="w-px h-3.5 mx-2.5 bg-white/20"></span>
                   <span class="inline-flex items-center gap-1.5 whitespace-nowrap" :class="!item.on && 'opacity-50'">
@@ -147,16 +157,14 @@
                 </template>
               </span>
             </div>
-            <p v-else class="text-center text-[12px] text-slate-400 pt-3">
-              {{ settings.hudEnabled ? 'Nothing to show with these settings.' : 'The HUD is off.' }}
-            </p>
+            <p v-else class="text-center text-[12px] text-slate-400 pt-3">The HUD is off.</p>
           </div>
 
           <div class="bg-white rounded-md border border-slate-200 divide-y divide-slate-200">
             <label class="flex items-center justify-between gap-4 px-4 py-3 cursor-pointer">
               <span>
                 <span class="block font-semibold text-slate-800">Show redirect HUD</span>
-                <span class="block text-slate-500 text-[12px]">Only appears while at least one redirect rule is on.</span>
+                <span class="block text-slate-500 text-[12px]">On every page while Resourced is on; says "No overrides" while no redirect is on there.</span>
               </span>
               <USwitch
                 :model-value="settings.hudEnabled"
@@ -166,12 +174,12 @@
               />
             </label>
 
-            <div class="flex items-center justify-between gap-6 px-4 py-3" :class="!settings.hudEnabled && 'opacity-50'">
+            <div class="flex items-center justify-between gap-6 px-4 py-3" :class="[STACKED, '@max-xl:items-stretch', !settings.hudEnabled && 'opacity-50']">
               <span class="shrink-0">
                 <span class="block font-semibold text-slate-800">Opacity</span>
                 <span class="block text-slate-500 text-[12px]">How see-through the HUD is.</span>
               </span>
-              <div class="flex items-center gap-3 w-64">
+              <div class="flex items-center gap-3 w-64 @max-xl:w-full">
                 <USlider
                   :model-value="Math.round(settings.hudOpacity * 100)"
                   @update:model-value="(value) => update('hudOpacity', value / 100)"
@@ -185,7 +193,27 @@
               </div>
             </div>
 
-            <div class="flex items-center justify-between gap-6 px-4 py-3" :class="!settings.hudEnabled && 'opacity-50'">
+            <div class="flex items-center justify-between gap-6 px-4 py-3" :class="[STACKED, !settings.hudEnabled && 'opacity-50']">
+              <span>
+                <span class="block font-semibold text-slate-800">Running light</span>
+                <span class="block text-slate-500 text-[12px]">A green light animated around the HUD while at least one redirect is on.</span>
+              </span>
+              <div role="radiogroup" aria-label="Running light" class="shrink-0 flex flex-wrap rounded-md bg-slate-100 p-0.5 ring-1 ring-slate-200">
+                <button
+                  v-for="option in GLOW_MODES"
+                  :key="option.value"
+                  type="button"
+                  role="radio"
+                  :aria-checked="settings.hudGlow === option.value"
+                  :disabled="!settings.hudEnabled"
+                  class="h-7 px-3 rounded text-[12px] font-semibold transition-colors"
+                  :class="settings.hudGlow === option.value ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 enabled:hover:text-slate-800'"
+                  @click="update('hudGlow', option.value)"
+                >{{ option.label }}</button>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-6 px-4 py-3" :class="[STACKED, !settings.hudEnabled && 'opacity-50']">
               <span>
                 <span class="block font-semibold text-slate-800">Position</span>
                 <span class="block text-slate-500 text-[12px]">Drag the HUD by its grip on any page. Double-clicking the grip also resets it.</span>
@@ -219,7 +247,7 @@
               />
             </label>
 
-            <div class="flex items-center justify-between gap-6 px-4 py-3">
+            <div class="flex items-center justify-between gap-6 px-4 py-3" :class="STACKED">
               <span>
                 <span class="block font-semibold text-slate-800">Ports</span>
                 <span class="block text-slate-500 text-[12px]">The destination port of each redirect; editable ones change the rule when you click them.</span>
@@ -238,7 +266,7 @@
               </div>
             </div>
 
-            <div class="flex items-center justify-between gap-6 px-4 py-3">
+            <div class="flex items-center justify-between gap-6 px-4 py-3" :class="[STACKED, '@max-xl:items-stretch']">
               <span class="shrink-0">
                 <span class="block font-semibold text-slate-800">Only on these sites</span>
                 <span class="block text-slate-500 text-[12px]">Domains, comma-separated; subdomains included. Empty = every site.</span>
@@ -247,7 +275,7 @@
                 v-model="hudSitesDraft"
                 placeholder="e.g. stage.example.com, localhost"
                 size="sm"
-                class="font-mono w-72"
+                class="font-mono w-72 @max-xl:w-full"
                 @change="update('hudSites', hudSitesDraft.trim())"
               />
             </div>
@@ -303,6 +331,7 @@ const HUD_DEFAULTS = {
   hudShowCounts: true,
   hudShowSwitches: true,
   hudPortMode: 'edit',
+  hudGlow: 'snake',
   hudSites: '',
   failureToasts: true
 };
@@ -314,6 +343,15 @@ const HUD_TOGGLES = [
   { key: 'hudShowSwitches', label: 'On/off switches', description: 'Switch redirects on and off from the HUD.' }
 ];
 
+// Keep in sync with GLOW_STYLES in src/inject/hud.js.
+const GLOW_MODES = [
+  { value: 'off', label: 'Off' },
+  { value: 'snake', label: 'Snake' },
+  { value: 'glow', label: 'Glow' },
+  { value: 'pulse', label: 'Pulse' },
+  { value: 'scanner', label: 'Scanner' }
+];
+
 const PORT_MODES = [
   { value: 'edit', label: 'Editable' },
   { value: 'show', label: 'Read-only' },
@@ -322,8 +360,13 @@ const PORT_MODES = [
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
-  rules: { type: Array, default: () => [] }
+  rules: { type: Array, default: () => [] },
+  // Fills the popup / side panel instead of floating over the editor.
+  compact: { type: Boolean, default: false }
 });
+
+// A row's label above its control where the dialog is narrow (the popup, the side panel).
+const STACKED = '@max-xl:flex-col @max-xl:items-start @max-xl:gap-2';
 
 const emit = defineEmits(['update:modelValue']);
 
@@ -337,6 +380,8 @@ const load = () => {
   chrome.storage.local.get([...Object.keys(HUD_DEFAULTS), 'siteAllowlist', 'siteBlocklist', 'siteErrors', 'theme'], (result) => {
     theme.value = result.theme || 'system';
     settings.value = { ...HUD_DEFAULTS, ...result };
+    // Values no longer offered (speeds, removed animations) count as the snake, as on the page.
+    if (!GLOW_MODES.some(mode => mode.value === settings.value.hudGlow)) settings.value.hudGlow = 'snake';
     hudSitesDraft.value = settings.value.hudSites;
     siteDrafts.value = { siteAllowlist: result.siteAllowlist || '', siteBlocklist: result.siteBlocklist || '' };
     siteErrors.value = result.siteErrors || {};
@@ -492,3 +537,47 @@ const close = () => {
 // Backdrop click and Esc close it (shared with the other modals).
 const { onBackdropMousedown, onBackdropClick } = useModal(isOpen, close);
 </script>
+
+<style>
+/* The HUD's running light in the preview; the same as .glow in src/inject/hud.js. */
+.hud-glow {
+  position: absolute;
+  top: -20px;
+  left: -20px;
+  width: calc(100% + 40px);
+  height: calc(100% + 40px);
+  overflow: visible;
+  pointer-events: none;
+  z-index: -1;
+  filter: drop-shadow(0 0 2px #00dc82) drop-shadow(0 0 6px rgba(0, 220, 130, 0.9))
+    drop-shadow(0 0 14px rgba(0, 220, 130, 0.55));
+}
+.hud-glow rect {
+  x: 19px;
+  y: 19px;
+  width: calc(100% - 38px);
+  height: calc(100% - 38px);
+  rx: 16px;
+  ry: 16px;
+  fill: none;
+  stroke: #00dc82;
+  stroke-width: 2px;
+  stroke-linecap: round;
+}
+.hud-glow-snake rect { stroke-dasharray: 22 78; animation: hud-glow-run 2s linear infinite; }
+.hud-glow-pulse rect { animation: hud-glow-pulse 2.4s ease-in-out infinite; }
+.hud-glow-scanner {
+  mask: linear-gradient(90deg, transparent, #000 50%, transparent) 0 0 / 35% 100% no-repeat;
+  animation: hud-glow-scan 2.4s ease-in-out infinite alternate;
+}
+@keyframes hud-glow-run {
+  to { stroke-dashoffset: -100; }
+}
+@keyframes hud-glow-pulse {
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 1; }
+}
+@keyframes hud-glow-scan {
+  to { mask-position: 100% 0; }
+}
+</style>
