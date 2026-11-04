@@ -4,10 +4,11 @@
   <div class="group relative" :class="!bare && 'mb-2'">
     <div
       class="w-full bg-white transition-colors"
-      :class="bare ? '' : 'rounded-md border border-slate-200 shadow-sm overflow-hidden'"
+      :class="bare ? '' : ['rounded-md border shadow-sm overflow-hidden', rule.isCollapsed ? 'border-slate-200' : 'border-slate-300']"
     >
-      <!-- One-line header: grip, name, port, state icons · filters, syntax · delete · on/off, open/close -->
-      <div v-if="!bare" class="flex items-center gap-2 pl-1 pr-2 py-1.5 bg-slate-200">
+      <!-- One-line header: grip, name, port, state icons · filters, syntax · delete · on/off, open/close.
+           Like the popup / side panel rows: grey while the card is open, white when it's closed. -->
+      <div v-if="!bare" class="flex items-center gap-2 pl-1 pr-2 py-1.5 transition-colors" :class="!rule.isCollapsed && 'bg-slate-200'">
         <UIcon
           name="i-lucide-grip-vertical"
           class="drag-handle shrink-0 w-4 h-4 text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing"
@@ -94,7 +95,8 @@
           icon="i-lucide-trash-2"
           title="Delete rule"
           @click="$emit('delete')"
-          class="shrink-0 text-slate-500 hover:text-red-500 hover:bg-slate-300 rounded-md w-6 h-6 p-0 flex justify-center items-center transition-colors"
+          class="shrink-0 text-slate-500 hover:text-red-500 rounded-md w-6 h-6 p-0 flex justify-center items-center transition-colors"
+          :class="rule.isCollapsed ? 'hover:bg-slate-100' : 'hover:bg-slate-300'"
         />
         <div class="shrink-0 w-px h-4 bg-slate-300"></div>
         <USwitch
@@ -109,7 +111,8 @@
         <!-- Open / close, the same arrow as in the popup and side panel -->
         <button
           type="button"
-          class="shrink-0 -mr-0.5 flex items-center justify-center w-6 h-6 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-300 transition-colors"
+          class="shrink-0 -mr-0.5 flex items-center justify-center w-6 h-6 rounded-md text-slate-500 hover:text-slate-700 transition-colors"
+          :class="rule.isCollapsed ? 'hover:bg-slate-100' : 'hover:bg-slate-300'"
           :aria-expanded="!rule.isCollapsed"
           :title="rule.isCollapsed ? 'Show the fields' : 'Hide the fields'"
           @click="$emit('update-collapse', !rule.isCollapsed)"

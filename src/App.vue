@@ -119,7 +119,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import draggable from 'vuedraggable';
 import { useRules } from './composables/useRules';
 
@@ -136,7 +136,7 @@ import HelpModal from './components/HelpModal.vue';
 import SettingsModal from './components/SettingsModal.vue';
 import ConfirmModal from './components/ConfirmModal.vue';
 import TestRulesModal from './components/TestRulesModal.vue';
-import { yieldToOlderEditor } from './lib/editorTab.js';
+import { yieldToOlderEditor, takeFileEditRequests } from './lib/editorTab.js';
 
 const activeTab = ref('redirects');
 
@@ -222,6 +222,11 @@ onMounted(async () => {
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg.action === 'dataUpdated') fetchDomains();
     });
+  }
+
+  // "File Content" in the popup / side panel opens that rule's file here.
+  if (typeof chrome !== 'undefined' && chrome.storage?.session) {
+    takeFileEditRequests(openFileEditorFor).catch((err) => console.error('Could not open the file editor:', err));
   }
 
   const fileInput = document.getElementById('fileInput');
@@ -357,6 +362,28 @@ const openFileEditor = (rule) => {
   editingRuleId.value = rule.id;
   editorContent.value = rule.file || '';
   isEditorOpen.value = true;
+};
+
+// Shows the rule's tab, then its File Content editor.
+const openFileEditorFor = async (ruleId) => {
+  let rule = globalRules.value.find(r => r.id === ruleId);
+  if (!rule) {
+    // Made in the popup just now, before this tab heard of it.
+    await fetchDomains();
+    rule = globalRules.value.find(r => r.id === ruleId);
+  }
+  if (!rule) return;
+  const group = RULE_GROUPS.find(g => g.types.includes(rule.type));
+  if (group) activeTab.value = group.value;
+  isSettingsOpen.value = false;
+  isHelpOpen.value = false;
+  isTestOpen.value = false;
+  // Already showing another file: reopen, so the editor loads this one.
+  if (isEditorOpen.value) {
+    isEditorOpen.value = false;
+    await nextTick();
+  }
+  openFileEditor(rule);
 };
 
 const handleEditorSave = async (newContent) => {

@@ -339,7 +339,7 @@
                         :rule="rule"
                         bare
                         @update="(updated) => updateRule(rule.id, updated)"
-                        @edit-file="openEditor"
+                        @edit-file="(edited) => openEditor({ editFile: edited.id })"
                       />
                     </div>
                   </li>
@@ -359,7 +359,7 @@
             icon="i-lucide-external-link"
             title="Open editor"
             class="text-slate-600 font-medium"
-            @click="openEditor"
+            @click="openEditor()"
           >
             <span class="truncate @max-2xs:hidden">Open editor</span>
           </UButton>
@@ -613,9 +613,10 @@ const toggleSidePanel = () => {
 };
 
 // Brings the editor forward if it's open already. The popup makes way for it.
-const openEditor = async () => {
+// `editFile`: a rule id; the editor shows that rule's tab and its File Content editor.
+const openEditor = async ({ editFile } = {}) => {
   if (!hasChrome) return;
-  await openEditorTab().catch((err) => console.error('Could not open the editor:', err));
+  await openEditorTab({ editFile }).catch((err) => console.error('Could not open the editor:', err));
   if (!isSidePanel) window.close();
 };
 

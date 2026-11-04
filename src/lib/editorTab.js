@@ -5,6 +5,10 @@
 
 const editorUrl = () => chrome.runtime.getURL('index.html');
 
+const FILE_EDIT_KEY = 'pendingFileEdit';
+// A request the editor didn't get to (it failed to open) doesn't pop up much later.
+const FILE_EDIT_MAX_AGE = 30_000;
+
 // Every tab showing the editor, oldest first (tab ids only grow).
 export async function findEditorTabs() {
   const tabs = await chrome.tabs.query({});
@@ -18,7 +22,11 @@ export async function focusTab(tab) {
   await chrome.windows.update(tab.windowId, { focused: true });
 }
 
-export async function openEditor() {
+// `editFile`: a rule id whose File Content editor the editor tab should open. It's left in
+// chrome.storage.session, so a tab that's still loading (or reloading) finds it too; see
+// takeFileEditRequests.
+export async function openEditor({ editFile } = {}) {
+  if (editFile) await chrome.storage.session.set({ [FILE_EDIT_KEY]: { ruleId: editFile, time: Date.now() } });
   const [existing] = await findEditorTabs();
   if (existing) await focusTab(existing);
   else await chrome.tabs.create({ url: `${editorUrl()}?tab=true` });
@@ -36,4 +44,21 @@ export async function yieldToOlderEditor() {
   await focusTab(older);
   await chrome.tabs.remove(self.id);
   return true;
+}
+
+// For the editor tab: calls onRequest(ruleId) for the File Content request openEditor left,
+// now and whenever a new one comes. Only an editor tab takes them, not the DevTools panel,
+// which runs the same page.
+export async function takeFileEditRequests(onRequest) {
+  if (!(await chrome.tabs.getCurrent())) return;
+  const take = async () => {
+    const { [FILE_EDIT_KEY]: request } = await chrome.storage.session.get(FILE_EDIT_KEY);
+    if (!request) return;
+    await chrome.storage.session.remove(FILE_EDIT_KEY);
+    if (Date.now() - request.time <= FILE_EDIT_MAX_AGE) onRequest(request.ruleId);
+  };
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'session' && changes[FILE_EDIT_KEY]?.newValue) take();
+  });
+  await take();
 }
